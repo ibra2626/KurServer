@@ -1,0 +1,13 @@
+# Core CLI Framework
+click>=8.0.0
+rich>=13.0.0
+inquirer>=2.10.0
+
+# Configuration Management
+PyYAML>=6.0
+Jinja2>=3.1.0
+python-dotenv>=0.19.0
+
+# GitHub Integration
+PyGithub>=1.55.0
+GitPython>=3.1.0

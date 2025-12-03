@@ -1,0 +1,52 @@
+# KurServer MySQL Configuration Template
+# Generated for MySQL {{ mysql_version }}
+
+[mysqld]
+# Basic settings
+bind-address = {{ bind_address | default('127.0.0.1') }}
+port = {{ port | default('3306') }
+datadir = {{ datadir | default('/var/lib/mysql') }}
+socket = {{ socket | default('/var/run/mysqld/mysqld.sock') }}
+pid-file = {{ pid_file | default('/var/run/mysqld/mysqld.pid') }}
+
+# Connection settings
+max_connections = {{ max_connections | default('100') }}
+connect_timeout = {{ connect_timeout | default('10') }}
+wait_timeout = {{ wait_timeout | default('600') }}
+max_allowed_packet = {{ max_allowed_packet | default('64M') }}
+
+# General and slow query log settings
+general_log = {{ general_log | default('OFF') }}
+general_log_file = {{ general_log_file | default('/var/log/mysql/mysql.log') }}
+slow_query_log = {{ slow_query_log | default('ON') }}
+slow_query_log_file = {{ slow_query_log_file | default('/var/log/mysql/mysql-slow.log') }}
+long_query_time = {{ long_query_time | default('2') }}
+
+# Error log
+log_error = {{ log_error | default('/var/log/mysql/error.log') }}
+
+# Character set
+character-set-server = {{ character_set | default('utf8mb4') }}
+collation-server = {{ collation | default('utf8mb4_unicode_ci') }}
+
+# InnoDB settings
+innodb_buffer_pool_size = {{ innodb_buffer_pool_size | default('128M') }}
+innodb_log_file_size = {{ innodb_log_file_size | default('32M') }}
+innodb_flush_method = {{ innodb_flush_method | default('O_DIRECT') }}
+innodb_file_per_table = {{ innodb_file_per_table | default('1') }}
+
+# Query cache
+query_cache_type = {{ query_cache_type | default('1') }}
+query_cache_size = {{ query_cache_size | default('64M') }}
+query_cache_limit = {{ query_cache_limit | default('1M') }}
+
+# Security settings
+local-infile = {{ local_infile | default('0') }}
+
+[mysql]
+default-character-set = {{ character_set | default('utf8mb4') }}
+
+[mysqldump]
+quick
+quote-names
+max_allowed_packet = {{ max_allowed_packet | default('64M') }}

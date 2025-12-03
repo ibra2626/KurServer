@@ -1,0 +1,38 @@
+; KurServer PHP Configuration Template
+; Generated for PHP {{ php_version }}
+
+; Basic settings
+max_execution_time = {{ max_execution_time | default('30') }}
+memory_limit = {{ memory_limit | default('128M') }}
+error_reporting = {{ error_reporting | default('E_ALL & ~E_DEPRECATED & ~E_STRICT') }}
+display_errors = {{ display_errors | default('Off') }}
+log_errors = {{ log_errors | default('On') }}
+error_log = {{ error_log | default('/var/log/php{{ php_version }}-fpm.log') }}
+
+; File upload settings
+upload_max_filesize = {{ upload_max_filesize | default('64M') }}
+post_max_size = {{ post_max_size | default('64M') }}
+max_file_uploads = {{ max_file_uploads | default('20') }}
+
+; Session settings
+session.save_handler = {{ session_save_handler | default('files') }}
+session.save_path = {{ session_save_path | default('/var/lib/php/sessions') }}
+session.use_strict_mode = {{ session_use_strict_mode | default('1') }}
+session.use_cookies = {{ session_use_cookies | default('1') }}
+session.use_only_cookies = {{ session_use_cookies | default('1') }}
+session.name = {{ session_name | default('PHPSESSID') }}
+
+; Security settings
+expose_php = {{ expose_php | default('Off') }}
+allow_url_fopen = {{ allow_url_fopen | default('On') }}
+allow_url_include = {{ allow_url_include | default('Off') }}
+
+; Extension settings
+{% for extension in enabled_extensions | default([]) %}
+extension={{ extension }}
+{% endfor %}
+
+; Custom settings
+{% for key, value in custom_settings | default({}) %}
+{{ key }} = {{ value }}
+{% endfor %}

@@ -1,0 +1,16 @@
+# Testing
+pytest>=7.0.0
+pytest-mock>=3.8.0
+coverage>=6.0.0
+
+# Code Quality
+black>=22.0.0
+flake8>=5.0.0
+mypy>=0.991
+
+# Documentation
+Sphinx>=5.0.0
+sphinx-rtd-theme>=1.0.0
+
+# Include production dependencies
+-r requirements.txt
