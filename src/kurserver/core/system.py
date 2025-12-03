@@ -166,13 +166,41 @@ def is_service_running(service_name):
         bool: True if service is running, False otherwise
     """
     try:
+        # Try systemd first
         result = subprocess.run(
             ['systemctl', 'is-active', service_name],
             capture_output=True,
-            text=True
+            text=True,
+            timeout=3
         )
-        return result.stdout.strip() == 'active'
-    except subprocess.SubprocessError:
+        if result.returncode == 0:
+            return result.stdout.strip() == 'active'
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
+        pass
+    
+    try:
+        # Fallback to service command
+        result = subprocess.run(
+            ['service', service_name, 'status'],
+            capture_output=True,
+            text=True,
+            timeout=3
+        )
+        # Check if output contains "running" or "is running"
+        return 'running' in result.stdout.lower() or 'is running' in result.stdout.lower()
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
+        pass
+    
+    # Final fallback: check if process is running
+    try:
+        result = subprocess.run(
+            ['pgrep', '-f', service_name],
+            capture_output=True,
+            text=True,
+            timeout=3
+        )
+        return bool(result.stdout.strip())
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
         return False
 
 
@@ -187,14 +215,21 @@ def is_service_enabled(service_name):
         bool: True if service is enabled, False otherwise
     """
     try:
+        # Try systemd first
         result = subprocess.run(
             ['systemctl', 'is-enabled', service_name],
             capture_output=True,
-            text=True
+            text=True,
+            timeout=3
         )
-        return result.stdout.strip() == 'enabled'
-    except subprocess.SubprocessError:
-        return False
+        if result.returncode == 0:
+            return result.stdout.strip() == 'enabled'
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
+        pass
+    
+    # For non-systemd systems, we can't easily check if service is enabled
+    # Return False as we can't determine the status
+    return False
 
 
 def get_service_status():
