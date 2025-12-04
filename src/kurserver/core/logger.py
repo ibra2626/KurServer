@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 
-def setup_logger(name="kurserver", level=logging.INFO, log_file=None):
+def setup_logger(name="kurserver", level=logging.INFO, log_file=None, debug_mode=False):
     """
     Set up logging configuration for KurServer CLI.
     
@@ -34,7 +34,8 @@ def setup_logger(name="kurserver", level=logging.INFO, log_file=None):
     
     # Console handler
     console_handler = logging.StreamHandler()
-    console_handler.setLevel(level)
+    # Set level based on debug mode
+    console_handler.setLevel(logging.DEBUG if debug_mode else level)
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
     
@@ -65,9 +66,12 @@ def get_logger(name="kurserver"):
     return logging.getLogger(name)
 
 
-def setup_file_logging():
+def setup_file_logging(debug_mode=False):
     """
     Set up file logging with default configuration.
+    
+    Args:
+        debug_mode (bool): Enable debug mode for console output
     
     Returns:
         logging.Logger: Configured logger instance
@@ -76,7 +80,28 @@ def setup_file_logging():
     log_dir = Path.home() / ".kurserver" / "logs"
     log_file = log_dir / "kurserver.log"
     
-    return setup_logger(log_file=str(log_file))
+    return setup_logger(log_file=str(log_file), debug_mode=debug_mode)
+
+
+def debug_log(logger, component, message, level=logging.INFO):
+    """
+    Log a debug message only if debug mode is enabled for the component.
+    
+    Args:
+        logger (logging.Logger): Logger instance
+        component (str): Component name
+        message (str): Message to log
+        level (int): Logging level (default: INFO)
+    """
+    try:
+        # Import here to avoid circular imports
+        from ..config.debug import is_debug_enabled
+        
+        if is_debug_enabled(component) or is_debug_enabled():
+            logger.log(level, f"[DEBUG:{component.upper()}] {message}")
+    except ImportError:
+        # If debug config is not available, log the message
+        logger.log(level, f"[DEBUG:{component.upper()}] {message}")
 
 
 def log_operation_start(logger, operation):

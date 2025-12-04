@@ -2,7 +2,9 @@
 System detection and requirements validation for KurServer CLI.
 """
 
+import logging
 import os
+import glob
 import platform
 import subprocess
 from pathlib import Path
@@ -227,6 +229,18 @@ def is_service_enabled(service_name):
     except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
         pass
     
+
+    check_runlevels = [3, 5, 2]
+
+    for level in check_runlevels:
+        rc_dir = f'/etc/rc{level}.d'
+        
+        if os.path.exists(rc_dir):
+            pattern = os.path.join(rc_dir, f'S*{service_name}*')
+            
+            if glob.glob(pattern):
+                return True
+
     # For non-systemd systems, we can't easily check if service is enabled
     # Return False as we can't determine the status
     return False
@@ -381,73 +395,73 @@ def restart_service(service_name):
     Returns:
         bool: True if successful, False otherwise
     """
-    from .logger import get_logger
+    from .logger import get_logger, debug_log
     logger = get_logger()
     
     # DEBUG: Log function entry
-    logger.info(f"[DEBUG] restart_service called for: {service_name}")
+    debug_log(logger, "system", f"restart_service called for: {service_name}")
     
     # Check if we're in a container environment
     is_container = is_container_environment()
-    logger.info(f"[DEBUG] Is container environment: {is_container}")
+    debug_log(logger, "system", f"Is container environment: {is_container}")
     
     # ENHANCED DEBUG: Check if service exists before trying to restart
-    logger.info(f"[DEBUG] Checking if service {service_name} exists")
+    debug_log(logger, "system", f"Checking if service {service_name} exists")
     try:
         # Check if service unit file exists
         check_result = subprocess.run(['sudo', 'systemctl', 'list-unit-files', f"{service_name}.service"],
                                      capture_output=True, text=True)
-        logger.info(f"[DEBUG] systemctl list-unit-files return code: {check_result.returncode}")
-        logger.info(f"[DEBUG] systemctl list-unit-files stdout: {check_result.stdout}")
+        debug_log(logger, "system", f"systemctl list-unit-files return code: {check_result.returncode}")
+        debug_log(logger, "system", f"systemctl list-unit-files stdout: {check_result.stdout}")
         if check_result.stderr:
-            logger.info(f"[DEBUG] systemctl list-unit-files stderr: {check_result.stderr}")
+            debug_log(logger, "system", f"systemctl list-unit-files stderr: {check_result.stderr}")
         
         service_exists = check_result.returncode == 0 and service_name in check_result.stdout
-        logger.info(f"[DEBUG] Service {service_name} exists: {service_exists}")
+        debug_log(logger, "system", f"Service {service_name} exists: {service_exists}")
     except Exception as e:
-        logger.warning(f"[DEBUG] Error checking if service exists: {e}")
+        debug_log(logger, "system", f"Error checking if service exists: {e}", level=logging.WARNING)
         service_exists = False
     
     if is_container:
         try:
             # In containers, try to restart using service command
-            logger.info(f"[DEBUG] Trying service command restart")
+            debug_log(logger, "system", "Trying service command restart")
             result = subprocess.run(['sudo', 'service', service_name, 'restart'], check=True, capture_output=True, text=True)
-            logger.info(f"[DEBUG] Service command restart successful")
-            logger.debug(f"[DEBUG] Service command stdout: {result.stdout}")
+            debug_log(logger, "system", "Service command restart successful")
+            debug_log(logger, "system", f"Service command stdout: {result.stdout}")
             if result.stderr:
-                logger.debug(f"[DEBUG] Service command stderr: {result.stderr}")
+                debug_log(logger, "system", f"Service command stderr: {result.stderr}")
             
             # ENHANCED DEBUG: Verify service is actually running after restart
-            logger.info(f"[DEBUG] Verifying service status after restart")
+            debug_log(logger, "system", "Verifying service status after restart")
             try:
                 status_result = subprocess.run(['sudo', 'service', service_name, 'status'],
                                              capture_output=True, text=True)
-                logger.info(f"[DEBUG] Service status return code: {status_result.returncode}")
-                logger.info(f"[DEBUG] Service status stdout: {status_result.stdout}")
+                debug_log(logger, "system", f"Service status return code: {status_result.returncode}")
+                debug_log(logger, "system", f"Service status stdout: {status_result.stdout}")
                 if status_result.stderr:
-                    logger.info(f"[DEBUG] Service status stderr: {status_result.stderr}")
+                    debug_log(logger, "system", f"Service status stderr: {status_result.stderr}")
                 
                 # Check if service is actually running
                 is_running = 'running' in status_result.stdout.lower() or 'is running' in status_result.stdout.lower()
-                logger.info(f"[DEBUG] Service is running after restart: {is_running}")
+                debug_log(logger, "system", f"Service is running after restart: {is_running}")
             except Exception as e:
-                logger.warning(f"[DEBUG] Error checking service status after restart: {e}")
+                debug_log(logger, "system", f"Error checking service status after restart: {e}", level=logging.WARNING)
             
-            logger.info(f"[DEBUG] About to return True from restart_service (container path)")
+            debug_log(logger, "system", "About to return True from restart_service (container path)")
             return True
         except subprocess.SubprocessError as e:
-            logger.warning(f"[DEBUG] Service command restart failed: {e}")
-            logger.debug(f"[DEBUG] Exception stdout: {e.stdout}")
+            debug_log(logger, "system", f"Service command restart failed: {e}", level=logging.WARNING)
+            debug_log(logger, "system", f"Exception stdout: {e.stdout}")
             if e.stderr:
-                logger.debug(f"[DEBUG] Exception stderr: {e.stderr}")
+                debug_log(logger, "system", f"Exception stderr: {e.stderr}")
             try:
                 # Fallback to direct command if available
                 if service_name.startswith('php') and '-fpm' in service_name:
                     # For PHP-FPM, try to start it directly
                     version = service_name.replace('php', '').replace('-fpm', '')
                     php_fpm_binary = f"/usr/sbin/php-fpm{version}"
-                    logger.info(f"[DEBUG] Trying to start PHP-FPM directly with binary: {php_fpm_binary}")
+                    debug_log(logger, "system", f"Trying to start PHP-FPM directly with binary: {php_fpm_binary}")
                     try:
                         # First check if binary exists
                         binary_check = subprocess.run(['which', php_fpm_binary],
@@ -457,57 +471,57 @@ def restart_service(service_name):
                             subprocess.run(['sudo', php_fpm_binary, "--nodaemonize",
                                           "--fpm-config", f"/etc/php/{version}/fpm/php-fpm.conf"],
                                          check=True, capture_output=True, text=True, timeout=5)
-                            logger.info(f"[DEBUG] Direct PHP-FPM start successful")
+                            debug_log(logger, "system", "Direct PHP-FPM start successful")
                             return True
                         else:
-                            logger.warning(f"[DEBUG] PHP-FPM binary not found: {php_fpm_binary}")
+                            debug_log(logger, "system", f"PHP-FPM binary not found: {php_fpm_binary}", level=logging.WARNING)
                     except Exception as direct_e:
-                        logger.warning(f"[DEBUG] Direct PHP-FPM start failed: {direct_e}")
+                        debug_log(logger, "system", f"Direct PHP-FPM start failed: {direct_e}", level=logging.WARNING)
                 
                 if service_name == 'nginx':
-                    logger.info(f"[DEBUG] Trying nginx direct reload")
+                    debug_log(logger, "system", "Trying nginx direct reload")
                     subprocess.run(['sudo', 'nginx', '-s', 'reload'], check=True)
-                    logger.info(f"[DEBUG] Nginx direct reload successful")
+                    debug_log(logger, "system", "Nginx direct reload successful")
                     return True
                 # Add more service-specific commands as needed
             except subprocess.SubprocessError as e:
-                logger.warning(f"[DEBUG] Direct command also failed: {e}")
+                debug_log(logger, "system", f"Direct command also failed: {e}", level=logging.WARNING)
                 return False
     else:
         # In regular systems, use systemctl
         try:
-            logger.info(f"[DEBUG] Trying systemctl restart")
+            debug_log(logger, "system", "Trying systemctl restart")
             restart_result = subprocess.run(['sudo', 'systemctl', 'restart', service_name],
                                           capture_output=True, text=True)
-            logger.info(f"[DEBUG] systemctl restart return code: {restart_result.returncode}")
+            debug_log(logger, "system", f"systemctl restart return code: {restart_result.returncode}")
             if restart_result.stdout:
-                logger.info(f"[DEBUG] systemctl restart stdout: {restart_result.stdout}")
+                debug_log(logger, "system", f"systemctl restart stdout: {restart_result.stdout}")
             if restart_result.stderr:
-                logger.info(f"[DEBUG] systemctl restart stderr: {restart_result.stderr}")
+                debug_log(logger, "system", f"systemctl restart stderr: {restart_result.stderr}")
             
             # ENHANCED DEBUG: Verify service is actually running after restart
-            logger.info(f"[DEBUG] Verifying service status after systemctl restart")
+            debug_log(logger, "system", "Verifying service status after systemctl restart")
             try:
                 status_result = subprocess.run(['sudo', 'systemctl', 'is-active', service_name],
                                              capture_output=True, text=True)
-                logger.info(f"[DEBUG] systemctl is-active return code: {status_result.returncode}")
-                logger.info(f"[DEBUG] systemctl is-active stdout: {status_result.stdout}")
+                debug_log(logger, "system", f"systemctl is-active return code: {status_result.returncode}")
+                debug_log(logger, "system", f"systemctl is-active stdout: {status_result.stdout}")
                 if status_result.stderr:
-                    logger.info(f"[DEBUG] systemctl is-active stderr: {status_result.stderr}")
+                    debug_log(logger, "system", f"systemctl is-active stderr: {status_result.stderr}")
                 
                 # Check if service is actually running
                 is_active = status_result.returncode == 0 and 'active' in status_result.stdout
-                logger.info(f"[DEBUG] Service is active after restart: {is_active}")
+                debug_log(logger, "system", f"Service is active after restart: {is_active}")
             except Exception as e:
-                logger.warning(f"[DEBUG] Error checking service status after restart: {e}")
+                debug_log(logger, "system", f"Error checking service status after restart: {e}", level=logging.WARNING)
             
-            logger.info(f"[DEBUG] Systemctl restart successful")
+            debug_log(logger, "system", "Systemctl restart successful")
             return True
         except subprocess.SubprocessError as e:
-            logger.warning(f"[DEBUG] Systemctl restart failed: {e}")
-            logger.debug(f"[DEBUG] Exception stdout: {e.stdout}")
+            debug_log(logger, "system", f"Systemctl restart failed: {e}", level=logging.WARNING)
+            debug_log(logger, "system", f"Exception stdout: {e.stdout}")
             if e.stderr:
-                logger.debug(f"[DEBUG] Exception stderr: {e.stderr}")
+                debug_log(logger, "system", f"Exception stderr: {e.stderr}")
             return False
 
 

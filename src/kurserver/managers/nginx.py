@@ -698,8 +698,28 @@ def toggle_site(verbose: bool = False) -> None:
     console.print("[bold blue]Enable/Disable Website[/bold blue]")
     console.print()
     
-    # Get site to toggle
-    site = get_user_input("Enter domain name")
+    # List available sites with numbers
+    sites = list_sites_with_numbers(verbose)
+    
+    if not sites:
+        console.print("[yellow]No sites available to toggle.[/yellow]")
+        return
+    
+    console.print()
+    
+    # Get site selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Enter site number to toggle (1-{len(sites)})")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(sites):
+                site = sites[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(sites)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     # Check if site exists
     if not os.path.exists(f"/etc/nginx/sites-available/{site}"):
@@ -744,8 +764,28 @@ def site_info(verbose: bool = False) -> None:
     console.print("[bold blue]Site Information[/bold blue]")
     console.print()
     
-    # Get site to inspect
-    site = get_user_input("Enter domain name")
+    # List available sites with numbers
+    sites = list_sites_with_numbers(verbose)
+    
+    if not sites:
+        console.print("[yellow]No sites available to inspect.[/yellow]")
+        return
+    
+    console.print()
+    
+    # Get site selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Enter site number to inspect (1-{len(sites)})")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(sites):
+                site = sites[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(sites)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     # Check if site exists
     config_file = f"/etc/nginx/sites-available/{site}"
@@ -1011,8 +1051,28 @@ def install_ssl_cert(verbose: bool = False) -> None:
     console.print("[bold blue]Install SSL Certificate[/bold blue]")
     console.print()
     
-    # Get domain
-    domain = get_user_input("Enter domain name")
+    # List available sites with numbers
+    sites = list_sites_with_numbers(verbose)
+    
+    if not sites:
+        console.print("[yellow]No sites available for SSL installation.[/yellow]")
+        return
+    
+    console.print()
+    
+    # Get site selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Enter site number for SSL installation (1-{len(sites)})")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(sites):
+                domain = sites[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(sites)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     # Check if site exists
     if not os.path.exists(f"/etc/nginx/sites-available/{domain}"):

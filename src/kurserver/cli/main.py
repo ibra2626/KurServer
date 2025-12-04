@@ -10,13 +10,15 @@ from rich.text import Text
 
 from ..core.exceptions import KurServerError
 from ..core.logger import setup_logger
+from ..config.debug import is_debug_enabled, enable_debug, disable_debug, get_debug_status
 from .menu import main_menu
 
 # Initialize Rich console for beautiful output
 console = Console()
 
-# Setup logger
-logger = setup_logger()
+# Setup logger with debug mode check
+debug_enabled = is_debug_enabled()
+logger = setup_logger(debug_mode=debug_enabled)
 
 
 @click.group()
@@ -83,6 +85,80 @@ def status():
                 
     except KurServerError as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
+
+
+@cli.group()
+def debug():
+    """Manage debug mode settings."""
+    pass
+
+
+@debug.command()
+@click.option('--component', '-c', help='Enable debug for specific component (system, nginx, mysql, php, general)')
+def enable(component):
+    """Enable debug mode."""
+    if component:
+        if component not in ['system', 'nginx', 'mysql', 'php', 'general']:
+            console.print(f"[red]Invalid component: {component}[/red]")
+            console.print("Valid components: system, nginx, mysql, php, general")
+            sys.exit(1)
+        enable_debug(component)
+        console.print(f"[green]✓ Debug mode enabled for component: {component}[/green]")
+    else:
+        enable_debug()
+        console.print("[green]✓ Debug mode enabled globally[/green]")
+    
+    # Show current status
+    status = get_debug_status()
+    console.print("\n[bold]Current Debug Status:[/bold]")
+    console.print(f"Global: {'Enabled' if status['global_enabled'] else 'Disabled'}")
+    console.print("Components:")
+    for comp, enabled in status['components'].items():
+        status_text = "Enabled" if enabled else "Disabled"
+        color = "green" if enabled else "dim"
+        console.print(f"  {comp}: [{color}]{status_text}[/{color}]")
+
+
+@debug.command()
+@click.option('--component', '-c', help='Disable debug for specific component (system, nginx, mysql, php, general)')
+def disable(component):
+    """Disable debug mode."""
+    if component:
+        if component not in ['system', 'nginx', 'mysql', 'php', 'general']:
+            console.print(f"[red]Invalid component: {component}[/red]")
+            console.print("Valid components: system, nginx, mysql, php, general")
+            sys.exit(1)
+        disable_debug(component)
+        console.print(f"[yellow]Debug mode disabled for component: {component}[/yellow]")
+    else:
+        disable_debug()
+        console.print("[yellow]Debug mode disabled globally[/yellow]")
+    
+    # Show current status
+    status = get_debug_status()
+    console.print("\n[bold]Current Debug Status:[/bold]")
+    console.print(f"Global: {'Enabled' if status['global_enabled'] else 'Disabled'}")
+    console.print("Components:")
+    for comp, enabled in status['components'].items():
+        status_text = "Enabled" if enabled else "Disabled"
+        color = "green" if enabled else "dim"
+        console.print(f"  {comp}: [{color}]{status_text}[/{color}]")
+
+
+@debug.command()
+def status():
+    """Show current debug status."""
+    status_info = get_debug_status()
+    
+    console.print("[bold]Debug Mode Status[/bold]")
+    console.print(f"Global: {'Enabled' if status_info['global_enabled'] else 'Disabled'}")
+    console.print("\nComponents:")
+    
+    for component, enabled in status_info['components'].items():
+        status_text = "Enabled" if enabled else "Disabled"
+        color = "green" if enabled else "dim"
+        icon = "✓" if enabled else "✗"
+        console.print(f"  {icon} {component}: [{color}]{status_text}[/{color}]")
 
 
 def main():

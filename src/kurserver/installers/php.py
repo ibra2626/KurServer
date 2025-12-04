@@ -2,7 +2,7 @@
 PHP-FPM installer module for KurServer CLI.
 """
 
-from ..core.logger import get_logger
+from ..core.logger import get_logger, debug_log
 from ..cli.menu import get_user_input, confirm_action, show_progress
 from ..core.system import is_package_installed, restart_service
 from ..core.exceptions import PackageInstallationError
@@ -194,93 +194,93 @@ def _install_php(version: str, install_extensions: bool, verbose: bool = False) 
         logger.info(f"Enabling and starting PHP {version}-FPM service...")
     
     # ENHANCED DEBUG: Log service startup attempts
-    logger.info(f"[DEBUG] Attempting to start PHP {version}-FPM service")
-    logger.info(f"[DEBUG] PHP package name: {php_package}")
+    debug_log(logger, "php", f"Attempting to start PHP {version}-FPM service")
+    debug_log(logger, "php", f"PHP package name: {php_package}")
     
     # Check if we're in a Docker container (no systemd)
     try:
         # Try to enable service
-        logger.info(f"[DEBUG] Trying to enable {php_package} with systemctl")
+        debug_log(logger, "php", f"Trying to enable {php_package} with systemctl")
         enable_result = subprocess.run(["sudo", "systemctl", "enable", php_package],
                                      capture_output=True, text=True)
-        logger.info(f"[DEBUG] systemctl enable return code: {enable_result.returncode}")
+        debug_log(logger, "php", f"systemctl enable return code: {enable_result.returncode}")
         if enable_result.stdout:
-            logger.info(f"[DEBUG] systemctl enable stdout: {enable_result.stdout}")
+            debug_log(logger, "php", f"systemctl enable stdout: {enable_result.stdout}")
         if enable_result.stderr:
-            logger.info(f"[DEBUG] systemctl enable stderr: {enable_result.stderr}")
+            debug_log(logger, "php", f"systemctl enable stderr: {enable_result.stderr}")
         
         # Try to start service
-        logger.info(f"[DEBUG] Trying to start {php_package} with systemctl")
+        debug_log(logger, "php", f"Trying to start {php_package} with systemctl")
         start_result = subprocess.run(["sudo", "systemctl", "start", php_package],
                                     capture_output=True, text=True)
-        logger.info(f"[DEBUG] systemctl start return code: {start_result.returncode}")
+        debug_log(logger, "php", f"systemctl start return code: {start_result.returncode}")
         if start_result.stdout:
-            logger.info(f"[DEBUG] systemctl start stdout: {start_result.stdout}")
+            debug_log(logger, "php", f"systemctl start stdout: {start_result.stdout}")
         if start_result.stderr:
-            logger.info(f"[DEBUG] systemctl start stderr: {start_result.stderr}")
+            debug_log(logger, "php", f"systemctl start stderr: {start_result.stderr}")
         
         # Verify service is running
-        logger.info(f"[DEBUG] Verifying if {php_package} is running after systemctl start")
+        debug_log(logger, "php", f"Verifying if {php_package} is running after systemctl start")
         try:
             status_result = subprocess.run(["sudo", "systemctl", "is-active", php_package],
                                         capture_output=True, text=True)
-            logger.info(f"[DEBUG] systemctl is-active return code: {status_result.returncode}")
-            logger.info(f"[DEBUG] systemctl is-active stdout: {status_result.stdout}")
+            debug_log(logger, "php", f"systemctl is-active return code: {status_result.returncode}")
+            debug_log(logger, "php", f"systemctl is-active stdout: {status_result.stdout}")
             if status_result.stderr:
-                logger.info(f"[DEBUG] systemctl is-active stderr: {status_result.stderr}")
+                debug_log(logger, "php", f"systemctl is-active stderr: {status_result.stderr}")
         except Exception as e:
             logger.warning(f"[DEBUG] Error checking service status: {e}")
         
         if verbose:
             logger.info(f"PHP {version}-FPM service started with systemd")
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        logger.warning(f"[DEBUG] Systemd method failed: {e}")
+        debug_log(logger, "php", f"Systemd method failed: {e}")
         # Fallback for containers without systemd
         if verbose:
             logger.info("Systemd not available, using service command fallback...")
         
         try:
             # Try using service command
-            logger.info(f"[DEBUG] Trying to start {php_package} with service command")
+            debug_log(logger, "php", f"Trying to start {php_package} with service command")
             service_result = subprocess.run(["sudo", "service", php_package, "start"],
                                           capture_output=True, text=True)
-            logger.info(f"[DEBUG] service start return code: {service_result.returncode}")
+            debug_log(logger, "php", f"service start return code: {service_result.returncode}")
             if service_result.stdout:
-                logger.info(f"[DEBUG] service start stdout: {service_result.stdout}")
+                debug_log(logger, "php", f"service start stdout: {service_result.stdout}")
             if service_result.stderr:
-                logger.info(f"[DEBUG] service start stderr: {service_result.stderr}")
+                debug_log(logger, "php", f"service start stderr: {service_result.stderr}")
             
             # Verify service is running
-            logger.info(f"[DEBUG] Verifying if {php_package} is running after service start")
+            debug_log(logger, "php", f"Verifying if {php_package} is running after service start")
             try:
                 status_result = subprocess.run(["sudo", "service", php_package, "status"],
                                             capture_output=True, text=True)
-                logger.info(f"[DEBUG] service status return code: {status_result.returncode}")
-                logger.info(f"[DEBUG] service status stdout: {status_result.stdout}")
+                debug_log(logger, "php", f"service status return code: {status_result.returncode}")
+                debug_log(logger, "php", f"service status stdout: {status_result.stdout}")
                 if status_result.stderr:
-                    logger.info(f"[DEBUG] service status stderr: {status_result.stderr}")
+                    debug_log(logger, "php", f"service status stderr: {status_result.stderr}")
             except Exception as e:
                 logger.warning(f"[DEBUG] Error checking service status: {e}")
             
             if verbose:
                 logger.info(f"PHP {version}-FPM service started with service command")
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            logger.warning(f"[DEBUG] Service command also failed: {e}")
+            debug_log(logger, "php", f"Service command also failed: {e}")
             # Last resort: try to start the PHP-FPM process directly
             try:
                 php_fpm_binary = f"/usr/sbin/php-fpm{version}"
-                logger.info(f"[DEBUG] Trying to start PHP-FPM directly with binary: {php_fpm_binary}")
+                debug_log(logger, "php", f"Trying to start PHP-FPM directly with binary: {php_fpm_binary}")
                 direct_result = subprocess.run(["sudo", php_fpm_binary, "--nodaemonize", "--fpm-config", f"/etc/php/{version}/fpm/php-fpm.conf"],
                                               capture_output=True, text=True, timeout=5)
-                logger.info(f"[DEBUG] Direct PHP-FPM start return code: {direct_result.returncode}")
+                debug_log(logger, "php", f"Direct PHP-FPM start return code: {direct_result.returncode}")
                 if direct_result.stdout:
-                    logger.info(f"[DEBUG] Direct PHP-FPM start stdout: {direct_result.stdout}")
+                    debug_log(logger, "php", f"Direct PHP-FPM start stdout: {direct_result.stdout}")
                 if direct_result.stderr:
-                    logger.info(f"[DEBUG] Direct PHP-FPM start stderr: {direct_result.stderr}")
+                    debug_log(logger, "php", f"Direct PHP-FPM start stderr: {direct_result.stderr}")
                 if verbose:
                     logger.info(f"PHP {version}-FPM started directly")
             except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
-                logger.warning(f"[DEBUG] Direct PHP-FPM start also failed: {e}")
+                debug_log(logger, "php", f"Direct PHP-FPM start also failed: {e}")
                 logger.warning(f"Could not start PHP {version}-FPM service (this is normal in containers)")
     
     logger.info(f"PHP {version} installation completed successfully")
@@ -302,14 +302,14 @@ def _configure_php_fpm(version: str, verbose: bool = False) -> None:
         logger.info(f"Configuring PHP {version}-FPM...")
     
     # DEBUG: Log function entry
-    logger.info(f"[DEBUG] Starting PHP-FPM configuration for version {version}")
+    debug_log(logger, "php", f"Starting PHP-FPM configuration for version {version}")
     
     # ENHANCED DEBUG: Log system environment
-    logger.info(f"[DEBUG] System environment:")
-    logger.info(f"[DEBUG]   Current working directory: {os.getcwd()}")
-    logger.info(f"[DEBUG]   User ID: {os.getuid()}")
-    logger.info(f"[DEBUG]   Effective User ID: {os.geteuid()}")
-    logger.info(f"[DEBUG]   Python executable: {os.sys.executable}")
+    debug_log(logger, "php", "System environment:")
+    debug_log(logger, "php", f"  Current working directory: {os.getcwd()}")
+    debug_log(logger, "php", f"  User ID: {os.getuid()}")
+    debug_log(logger, "php", f"  Effective User ID: {os.geteuid()}")
+    debug_log(logger, "php", f"  Python executable: {os.sys.executable}")
     
     # Get system memory for tuning calculations
     total_memory_mb = 2048  # Default to 2GB if unable to detect
@@ -349,50 +349,50 @@ def _configure_php_fpm(version: str, verbose: bool = False) -> None:
     pool_config = f"/etc/php/{version}/fpm/pool.d/www.conf"
     
     # DEBUG: Check if configuration file exists
-    logger.info(f"[DEBUG] Checking if PHP-FPM config exists: {pool_config}")
+    debug_log(logger, "php", f"Checking if PHP-FPM config exists: {pool_config}")
     
     # ENHANCED DEBUG: Check directory structure
     php_dir = f"/etc/php/{version}"
     fpm_dir = f"/etc/php/{version}/fpm"
     pool_dir = f"/etc/php/{version}/fpm/pool.d"
     
-    logger.info(f"[DEBUG] Checking directory structure:")
-    logger.info(f"[DEBUG]   PHP directory exists: {os.path.exists(php_dir)}")
-    logger.info(f"[DEBUG]   FPM directory exists: {os.path.exists(fpm_dir)}")
-    logger.info(f"[DEBUG]   Pool directory exists: {os.path.exists(pool_dir)}")
+    debug_log(logger, "php", "Checking directory structure:")
+    debug_log(logger, "php", f"  PHP directory exists: {os.path.exists(php_dir)}")
+    debug_log(logger, "php", f"  FPM directory exists: {os.path.exists(fpm_dir)}")
+    debug_log(logger, "php", f"  Pool directory exists: {os.path.exists(pool_dir)}")
     
     if os.path.exists(pool_dir):
-        logger.info(f"[DEBUG] Files in pool directory:")
+        debug_log(logger, "php", "Files in pool directory:")
         try:
             for file in os.listdir(pool_dir):
-                logger.info(f"[DEBUG]     {file}")
+                debug_log(logger, "php", f"    {file}")
         except PermissionError as e:
             logger.error(f"[DEBUG] Permission error reading pool directory: {e}")
     
     if not os.path.exists(pool_config):
         logger.error(f"[DEBUG] PHP-FPM config file not found: {pool_config}")
-        logger.info(f"[DEBUG] This likely means PHP {version} is not installed properly")
+        debug_log(logger, "php", f"This likely means PHP {version} is not installed properly")
         
         # ENHANCED DEBUG: Check if PHP package is installed
         php_package = f"php{version}-fpm"
         try:
             result = subprocess.run(["dpkg", "-l", php_package], capture_output=True, text=True)
-            logger.info(f"[DEBUG] dpkg -l {php_package} result: {result.returncode}")
-            logger.info(f"[DEBUG] dpkg output: {result.stdout}")
+            debug_log(logger, "php", f"dpkg -l {php_package} result: {result.returncode}")
+            debug_log(logger, "php", f"dpkg output: {result.stdout}")
             if result.stderr:
-                logger.info(f"[DEBUG] dpkg stderr: {result.stderr}")
+                debug_log(logger, "php", f"dpkg stderr: {result.stderr}")
         except Exception as e:
             logger.error(f"[DEBUG] Error checking package installation: {e}")
         
         raise Exception(f"PHP-FPM configuration file not found: {pool_config}. This likely means PHP {version} is not installed properly.")
     
     # Create backup of original configuration
-    logger.info(f"[DEBUG] Creating backup of {pool_config}")
+    debug_log(logger, "php", f"Creating backup of {pool_config}")
     try:
         subprocess.run([
             "sudo", "cp", pool_config, f"{pool_config}.bak"
         ], check=True)
-        logger.info(f"[DEBUG] Backup created successfully")
+        debug_log(logger, "php", "Backup created successfully")
     except subprocess.CalledProcessError as e:
         logger.error(f"[DEBUG] Failed to create backup: {e}")
         raise
@@ -416,15 +416,15 @@ def _configure_php_fpm(version: str, verbose: bool = False) -> None:
     ]
     
     for i, sed_cmd in enumerate(sed_commands):
-        logger.info(f"[DEBUG] Applying sed command {i+1}/{len(sed_commands)}: {sed_cmd}")
+        debug_log(logger, "php", f"Applying sed command {i+1}/{len(sed_commands)}: {sed_cmd}")
         try:
             result = subprocess.run([
                 "sudo", "sed", "-i", sed_cmd, pool_config
             ], check=True, capture_output=True, text=True)
-            logger.info(f"[DEBUG] Sed command {i+1} applied successfully")
-            logger.debug(f"[DEBUG] Sed command {i+1} stdout: {result.stdout}")
+            debug_log(logger, "php", f"Sed command {i+1} applied successfully")
+            debug_log(logger, "php", f"Sed command {i+1} stdout: {result.stdout}")
             if result.stderr:
-                logger.debug(f"[DEBUG] Sed command {i+1} stderr: {result.stderr}")
+                debug_log(logger, "php", f"Sed command {i+1} stderr: {result.stderr}")
         except subprocess.CalledProcessError as e:
             logger.error(f"[DEBUG] Failed to apply sed command {i+1}: {sed_cmd}")
             logger.error(f"[DEBUG] Return code: {e.returncode}")
@@ -434,102 +434,102 @@ def _configure_php_fpm(version: str, verbose: bool = False) -> None:
             raise
     
     # Create PHP-FPM log directory
-    logger.info("[DEBUG] Creating PHP log directory")
+    debug_log(logger, "php", "Creating PHP log directory")
     try:
         subprocess.run([
             "sudo", "mkdir", "-p", "/var/log/php"
         ], check=True)
-        logger.info("[DEBUG] PHP log directory created successfully")
+        debug_log(logger, "php", "PHP log directory created successfully")
     except subprocess.CalledProcessError as e:
         logger.error(f"[DEBUG] Failed to create PHP log directory: {e}")
         raise
     
-    logger.info("[DEBUG] Setting ownership of PHP log directory")
+    debug_log(logger, "php", "Setting ownership of PHP log directory")
     try:
         subprocess.run([
             "sudo", "chown", "www-data:www-data", "/var/log/php"
         ], check=True)
-        logger.info("[DEBUG] PHP log directory ownership set successfully")
+        debug_log(logger, "php", "PHP log directory ownership set successfully")
     except subprocess.CalledProcessError as e:
         logger.error(f"[DEBUG] Failed to set PHP log directory ownership: {e}")
         raise
     
     # Restart PHP-FPM service
-    logger.info(f"[DEBUG] Attempting to restart PHP-FPM service: php{version}-fpm")
+    debug_log(logger, "php", f"Attempting to restart PHP-FPM service: php{version}-fpm")
     
     # ENHANCED DEBUG: Check service status before restart
     try:
         from ..core.system import is_service_running
         is_running = is_service_running(f"php{version}-fpm")
-        logger.info(f"[DEBUG] Service status before restart: {'running' if is_running else 'not running'}")
+        debug_log(logger, "php", f"Service status before restart: {'running' if is_running else 'not running'}")
     except Exception as e:
-        logger.warning(f"[DEBUG] Could not check service status: {e}")
+        debug_log(logger, "php", f"Could not check service status: {e}")
     
     try:
-        logger.info(f"[DEBUG] About to call restart_service for php{version}-fpm")
+        debug_log(logger, "php", f"About to call restart_service for php{version}-fpm")
         restart_result = restart_service(f"php{version}-fpm")
-        logger.info(f"[DEBUG] restart_service returned: {restart_result}")
+        debug_log(logger, "php", f"restart_service returned: {restart_result}")
         
         # Additional verification after restart
-        logger.info(f"[DEBUG] Verifying service status after restart...")
+        debug_log(logger, "php", "Verifying service status after restart...")
         try:
             is_running_after = is_service_running(f"php{version}-fpm")
-            logger.info(f"[DEBUG] Service status after restart: {'running' if is_running_after else 'not running'}")
+            debug_log(logger, "php", f"Service status after restart: {'running' if is_running_after else 'not running'}")
         except Exception as e:
-            logger.warning(f"[DEBUG] Could not verify service status after restart: {e}")
+            debug_log(logger, "php", f"Could not verify service status after restart: {e}")
         
         if not restart_result:
             logger.error(f"[DEBUG] restart_service failed, raising PackageInstallationError")
             
             # ENHANCED DEBUG: Try to understand why restart failed
-            logger.info(f"[DEBUG] Attempting to diagnose restart failure...")
+            debug_log(logger, "php", "Attempting to diagnose restart failure...")
             try:
                 # Check if service exists
                 result = subprocess.run([
                     "sudo", "systemctl", "list-unit-files", f"php{version}-fpm.service"
                 ], capture_output=True, text=True)
-                logger.info(f"[DEBUG] systemctl list-unit-files result: {result.returncode}")
-                logger.info(f"[DEBUG] systemctl list-unit-files stdout: {result.stdout}")
+                debug_log(logger, "php", f"systemctl list-unit-files result: {result.returncode}")
+                debug_log(logger, "php", f"systemctl list-unit-files stdout: {result.stdout}")
                 if result.stderr:
-                    logger.info(f"[DEBUG] systemctl list-unit-files stderr: {result.stderr}")
+                    debug_log(logger, "php", f"systemctl list-unit-files stderr: {result.stderr}")
             except Exception as e:
-                logger.warning(f"[DEBUG] Error checking service unit file: {e}")
+                debug_log(logger, "php", f"Error checking service unit file: {e}")
             
             raise PackageInstallationError(f"php{version}-fpm", "Failed to restart PHP-FPM service")
         
-        logger.info(f"[DEBUG] PHP-FPM service restarted successfully")
-        logger.info(f"[DEBUG] About to return from _configure_php_fpm function normally")
+        debug_log(logger, "php", "PHP-FPM service restarted successfully")
+        debug_log(logger, "php", "About to return from _configure_php_fpm function normally")
         
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        logger.warning(f"[DEBUG] restart_service failed with exception: {e}")
-        logger.warning(f"[DEBUG] Exception type: {type(e).__name__}")
-        logger.warning(f"[DEBUG] Exception args: {e.args}")
+        debug_log(logger, "php", f"restart_service failed with exception: {e}")
+        debug_log(logger, "php", f"Exception type: {type(e).__name__}")
+        debug_log(logger, "php", f"Exception args: {e.args}")
         # Fallback for containers without systemd
         try:
-            logger.info(f"[DEBUG] Trying fallback service restart command")
+            debug_log(logger, "php", "Trying fallback service restart command")
             result = subprocess.run([
                 "sudo", "service", f"php{version}-fpm", "restart"
             ], check=True, capture_output=True, text=True)
-            logger.info(f"[DEBUG] Fallback service restart successful")
-            logger.debug(f"[DEBUG] Fallback stdout: {result.stdout}")
+            debug_log(logger, "php", "Fallback service restart successful")
+            debug_log(logger, "php", f"Fallback stdout: {result.stdout}")
             if result.stderr:
-                logger.debug(f"[DEBUG] Fallback stderr: {result.stderr}")
+                debug_log(logger, "php", f"Fallback stderr: {result.stderr}")
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            logger.warning(f"[DEBUG] Fallback service restart also failed: {e}")
-            logger.warning(f"[DEBUG] Fallback exception type: {type(e).__name__}")
-            logger.warning(f"[DEBUG] Fallback exception args: {e.args}")
+            debug_log(logger, "php", f"Fallback service restart also failed: {e}")
+            debug_log(logger, "php", f"Fallback exception type: {type(e).__name__}")
+            debug_log(logger, "php", f"Fallback exception args: {e.args}")
             
             # ENHANCED DEBUG: Try to understand why fallback failed
-            logger.info(f"[DEBUG] Attempting to diagnose fallback failure...")
+            debug_log(logger, "php", "Attempting to diagnose fallback failure...")
             try:
                 # Check if service command exists
                 result = subprocess.run(["which", "service"], capture_output=True, text=True)
-                logger.info(f"[DEBUG] which service result: {result.returncode}")
-                logger.info(f"[DEBUG] which service stdout: {result.stdout}")
+                debug_log(logger, "php", f"which service result: {result.returncode}")
+                debug_log(logger, "php", f"which service stdout: {result.stdout}")
                 if result.stderr:
-                    logger.info(f"[DEBUG] which service stderr: {result.stderr}")
+                    debug_log(logger, "php", f"which service stderr: {result.stderr}")
             except Exception as e:
-                logger.warning(f"[DEBUG] Error checking service command: {e}")
+                debug_log(logger, "php", f"Error checking service command: {e}")
             
             # In containers, service might not be running, which is OK
             if verbose:
@@ -555,7 +555,7 @@ def _configure_php_fpm(version: str, verbose: bool = False) -> None:
     if verbose:
         logger.info(f"PHP {version}-FPM configuration completed")
     
-    logger.info(f"[DEBUG] PHP-FPM configuration function completed successfully")
+    debug_log(logger, "php", "PHP-FPM configuration function completed successfully")
 
 
 def _install_extensions_interactive(version: str, verbose: bool = False) -> None:
@@ -700,12 +700,12 @@ def _install_extensions_interactive(version: str, verbose: bool = False) -> None
         
         # Debug logging
         if verbose:
-            logger.info(f"User input: {selected_indices}")
-            logger.info(f"Available options: {selection_options}")
+            logger.debug(f"User input: {selected_indices}")
+            logger.debug(f"Available options: {selection_options}")
         
         # Additional debug logging to diagnose the issue
-        logger.info(f"[DEBUG] User input received: '{selected_indices}'")
-        logger.info(f"[DEBUG] First option in selection_options: '{selection_options[0] if selection_options else 'None'}'")
+        logger.debug(f"[DEBUG] User input received: '{selected_indices}'")
+        logger.debug(f"[DEBUG] First option in selection_options: '{selection_options[0] if selection_options else 'None'}'")
         
         # Determine which extensions to install
         extensions_to_install = []
@@ -725,14 +725,14 @@ def _install_extensions_interactive(version: str, verbose: bool = False) -> None
             # Parse user selection
             try:
                 indices = [int(i.strip()) for i in selected_indices.split()]
-                logger.info(f"[DEBUG] Parsed indices: {indices}")
+                debug_log(logger, "php", f"Parsed indices: {indices}")
                 valid_indices = []
                 
                 # Check if user selected the first option (common preset)
                 if 1 in indices and len(selection_options) > 0:
                     first_option = selection_options[0]
                     if first_option.startswith("common -"):
-                        logger.info(f"[DEBUG] User selected common preset via index 1")
+                        debug_log(logger, "php", "User selected common preset via index 1")
                         # Install common web extensions (JSON is built-in from PHP 8.0+)
                         common_extensions = ["mysql", "xml", "mbstring", "curl", "zip", "gd", "intl", "bcmath"]
                         extensions_to_install = [ext for ext in common_extensions if ext not in installed_extensions]
@@ -746,35 +746,35 @@ def _install_extensions_interactive(version: str, verbose: bool = False) -> None
                     else:
                         # Process normally if first option is not the common preset
                         for idx in indices:
-                            logger.info(f"[DEBUG] Processing index: {idx}")
+                            debug_log(logger, "php", f"Processing index: {idx}")
                             if 1 <= idx <= len(selection_options):
                                 ext_line = selection_options[idx - 1]
-                                logger.info(f"[DEBUG] Extension line: '{ext_line}'")
+                                debug_log(logger, "php", f"Extension line: '{ext_line}'")
                                 ext_name = ext_line.split(" - ")[0]
-                                logger.info(f"[DEBUG] Extracted extension name: '{ext_name}'")
+                                debug_log(logger, "php", f"Extracted extension name: '{ext_name}'")
                                 if ext_name not in installed_extensions:
                                     extensions_to_install.append(ext_name)
                                     valid_indices.append(str(idx))
-                                    logger.info(f"[DEBUG] Added extension to install: '{ext_name}'")
+                                    debug_log(logger, "php", f"Added extension to install: '{ext_name}'")
                                 else:
-                                    logger.info(f"[DEBUG] Extension '{ext_name}' already installed, skipping")
+                                    debug_log(logger, "php", f"Extension '{ext_name}' already installed, skipping")
                             else:
                                 console.print(f"[red]Invalid number: {idx}. Please enter numbers between 1 and {len(selection_options)}.[/red]")
                 else:
                     # Process normally if first option is not selected
                     for idx in indices:
-                        logger.info(f"[DEBUG] Processing index: {idx}")
+                        debug_log(logger, "php", f"Processing index: {idx}")
                         if 1 <= idx <= len(selection_options):
                             ext_line = selection_options[idx - 1]
-                            logger.info(f"[DEBUG] Extension line: '{ext_line}'")
+                            debug_log(logger, "php", f"Extension line: '{ext_line}'")
                             ext_name = ext_line.split(" - ")[0]
-                            logger.info(f"[DEBUG] Extracted extension name: '{ext_name}'")
+                            debug_log(logger, "php", f"Extracted extension name: '{ext_name}'")
                             if ext_name not in installed_extensions:
                                 extensions_to_install.append(ext_name)
                                 valid_indices.append(str(idx))
-                                logger.info(f"[DEBUG] Added extension to install: '{ext_name}'")
+                                debug_log(logger, "php", f"Added extension to install: '{ext_name}'")
                             else:
-                                logger.info(f"[DEBUG] Extension '{ext_name}' already installed, skipping")
+                                debug_log(logger, "php", f"Extension '{ext_name}' already installed, skipping")
                         else:
                             console.print(f"[red]Invalid number: {idx}. Please enter numbers between 1 and {len(selection_options)}.[/red]")
                 
@@ -810,9 +810,9 @@ def _install_extensions_interactive(version: str, verbose: bool = False) -> None
         console.print(f"  • {ext_name} - {available_extensions[ext_name]['description']}")
     
     # Install packages
-    logger.info(f"[DEBUG] Extensions to install: {extensions_to_install}")
+    debug_log(logger, "php", f"Extensions to install: {extensions_to_install}")
     packages_to_install = [available_extensions[ext]["package"] for ext in extensions_to_install]
-    logger.info(f"[DEBUG] Packages to install: {packages_to_install}")
+    debug_log(logger, "php", f"Packages to install: {packages_to_install}")
     
     # Update package lists (includes dpkg interruption fix)
     from ..utils.package import update_package_lists
@@ -824,7 +824,7 @@ def _install_extensions_interactive(version: str, verbose: bool = False) -> None
     for package in packages_to_install:
         try:
             if verbose:
-                logger.info(f"Installing {package}...")
+                debug_log(logger, "php", f"Installing {package}...")
             
             try:
                 subprocess.run([
@@ -835,14 +835,14 @@ def _install_extensions_interactive(version: str, verbose: bool = False) -> None
                 if "dpkg was interrupted" in e.stderr:
                     # Try to fix dpkg and retry
                     if verbose:
-                        logger.info(f"Detected dpkg interruption while installing {package}, attempting to fix...")
+                        debug_log(logger, "php", f"Detected dpkg interruption while installing {package}, attempting to fix...")
                     
                     if not fix_dpkg_interruption(verbose):
                         raise Exception(f"Failed to fix dpkg interruption: {e.stderr}")
                     
                     # Retry the installation
                     if verbose:
-                        logger.info(f"Retrying {package} installation...")
+                        debug_log(logger, "php", f"Retrying {package} installation...")
                     
                     subprocess.run([
                         "sudo", "apt", "install", "-y", package
@@ -889,7 +889,7 @@ def _configure_opcache(version: str, verbose: bool = False) -> None:
     import os
     
     if verbose:
-        logger.info(f"Configuring OPcache for PHP {version}...")
+        debug_log(logger, "php", f"Configuring OPcache for PHP {version}...")
     
     # OPcache configuration
     opcache_config = f"""; OPcache configuration for PHP {version}
@@ -948,7 +948,7 @@ opcache.validate_root=0
         os.chmod(blacklist_file, 0o644)
         
         if verbose:
-            logger.info(f"OPcache configuration for PHP {version} completed")
+            debug_log(logger, "php", f"OPcache configuration for PHP {version} completed")
             
     except Exception as e:
         logger.warning(f"Failed to configure OPcache: {e}")

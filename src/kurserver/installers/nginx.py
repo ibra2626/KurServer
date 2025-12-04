@@ -4,7 +4,7 @@ Nginx installer module for KurServer CLI.
 
 import os
 import subprocess
-from ..core.logger import get_logger
+from ..core.logger import get_logger, debug_log
 from ..cli.menu import get_user_input, confirm_action, show_progress
 from ..core.system import get_system_info, get_disk_space, is_package_installed, is_service_running
 from ..core.exceptions import SystemRequirementError
@@ -171,8 +171,7 @@ def _install_nginx(verbose: bool = False, enable_security: bool = True, enable_p
         raise Exception("Failed to update package lists")
     
     # Install Nginx
-    if verbose:
-        logger.info("Installing Nginx package...")
+    debug_log(logger, "nginx", "Installing Nginx package...")
     
     result = subprocess.run(
         ["sudo", "apt", "install", "-y", "nginx"],
@@ -185,33 +184,24 @@ def _install_nginx(verbose: bool = False, enable_security: bool = True, enable_p
     
     # Backup original configuration if Nginx is already installed
     if is_package_installed('nginx') and os.path.exists('/etc/nginx'):
-        if verbose:
-            logger.info("Backing up existing Nginx configuration...")
-        
+        debug_log(logger, "nginx", "Backing up existing Nginx configuration...")
         _backup_nginx_config(verbose)
     
     # Apply basic configuration
-    if verbose:
-        logger.info("Applying basic Nginx configuration...")
-    
+    debug_log(logger, "nginx", "Applying basic Nginx configuration...")
     _configure_nginx_basic(enable_performance, verbose)
     
     # Apply security hardening if requested
     if enable_security:
-        if verbose:
-            logger.info("Applying security hardening...")
-        
+        debug_log(logger, "nginx", "Applying security hardening...")
         _configure_nginx_security(verbose)
     
     # Configure log rotation
-    if verbose:
-        logger.info("Configuring log rotation...")
-    
+    debug_log(logger, "nginx", "Configuring log rotation...")
     _configure_log_rotation(verbose)
     
     # Enable and start Nginx service
-    if verbose:
-        logger.info("Enabling and starting Nginx service...")
+    debug_log(logger, "nginx", "Enabling and starting Nginx service...")
     
     # Enable service (only available on systemd)
     if _is_systemd_available():
@@ -219,8 +209,7 @@ def _install_nginx(verbose: bool = False, enable_security: bool = True, enable_p
         # Start service with systemd
         subprocess.run(["sudo", "systemctl", "start", "nginx"], check=True)
     else:
-        if verbose:
-            logger.info("Using service command for non-systemd system")
+        debug_log(logger, "nginx", "Using service command for non-systemd system")
         # Fallback for non-systemd systems
         subprocess.run(["sudo", "service", "nginx", "start"], check=True)
     
@@ -238,8 +227,7 @@ def _backup_nginx_config(verbose: bool = False) -> None:
     
     # Check if nginx directory exists and has content
     if not os.path.exists('/etc/nginx') or not os.listdir('/etc/nginx'):
-        if verbose:
-            logger.info("No existing Nginx configuration to backup")
+        debug_log(logger, "nginx", "No existing Nginx configuration to backup")
         return
     
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -252,13 +240,11 @@ def _backup_nginx_config(verbose: bool = False) -> None:
         # Copy configuration files
         subprocess.run(["sudo", "cp", "-r", "/etc/nginx/*", backup_dir], check=True)
         
-        if verbose:
-            logger.info(f"Nginx configuration backed up to {backup_dir}")
+        debug_log(logger, "nginx", f"Nginx configuration backed up to {backup_dir}")
     
     except subprocess.CalledProcessError as e:
         logger.warning(f"Failed to backup Nginx configuration: {e}")
-        if verbose:
-            logger.info("Continuing with installation without backup")
+        debug_log(logger, "nginx", "Continuing with installation without backup")
 
 
 def _configure_nginx_basic(enable_performance: bool = True, verbose: bool = False) -> None:
@@ -373,8 +359,7 @@ http {
     # Move to nginx directory
     subprocess.run(["sudo", "mv", "/tmp/nginx.conf", "/etc/nginx/nginx.conf"], check=True)
     
-    if verbose:
-        logger.info("Basic Nginx configuration applied")
+    debug_log(logger, "nginx", "Basic Nginx configuration applied")
 
 
 def _configure_nginx_security(verbose: bool = False) -> None:
@@ -402,8 +387,7 @@ add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 
     # Move to nginx conf.d directory
     subprocess.run(["sudo", "mv", "/tmp/security.conf", "/etc/nginx/conf.d/security.conf"], check=True)
     
-    if verbose:
-        logger.info("Security hardening configuration applied")
+    debug_log(logger, "nginx", "Security hardening configuration applied")
 
 
 def _configure_log_rotation(verbose: bool = False) -> None:
@@ -439,8 +423,7 @@ def _configure_log_rotation(verbose: bool = False) -> None:
     # Move to logrotate.d directory
     subprocess.run(["sudo", "mv", "/tmp/nginx", "/etc/logrotate.d/nginx"], check=True)
     
-    if verbose:
-        logger.info("Log rotation configuration applied")
+    debug_log(logger, "nginx", "Log rotation configuration applied")
 
 
 def _test_nginx_installation(verbose: bool = False) -> bool:
@@ -455,8 +438,7 @@ def _test_nginx_installation(verbose: bool = False) -> bool:
     """
     try:
         # Test configuration syntax
-        if verbose:
-            logger.info("Testing Nginx configuration syntax...")
+        debug_log(logger, "nginx", "Testing Nginx configuration syntax...")
         
         result = subprocess.run(
             ["sudo", "nginx", "-t"],
@@ -469,16 +451,14 @@ def _test_nginx_installation(verbose: bool = False) -> bool:
             return False
         
         # Check if service is running
-        if verbose:
-            logger.info("Checking Nginx service status...")
+        debug_log(logger, "nginx", "Checking Nginx service status...")
         
         if not is_service_running('nginx'):
             logger.error("Nginx service is not running")
             return False
         
         # Test basic HTTP response
-        if verbose:
-            logger.info("Testing HTTP response...")
+        debug_log(logger, "nginx", "Testing HTTP response...")
         
         import urllib.request
         import urllib.error
@@ -486,8 +466,7 @@ def _test_nginx_installation(verbose: bool = False) -> bool:
         try:
             response = urllib.request.urlopen('http://localhost', timeout=5)
             if response.getcode() == 200:
-                if verbose:
-                    logger.info("HTTP response test passed")
+                debug_log(logger, "nginx", "HTTP response test passed")
                 return True
         except urllib.error.URLError as e:
             logger.error(f"HTTP response test failed: {e}")
@@ -552,8 +531,7 @@ def nginx_service_manager(action: str, verbose: bool = False) -> bool:
                 return False
         else:
             # Perform service action
-            if verbose:
-                logger.info(f"Performing Nginx service action: {action}")
+            debug_log(logger, "nginx", f"Performing Nginx service action: {action}")
             
             if _is_systemd_available():
                 result = subprocess.run(
@@ -634,8 +612,7 @@ def validate_nginx_config(verbose: bool = False) -> bool:
     from ..cli.menu import console
     
     try:
-        if verbose:
-            logger.info("Validating Nginx configuration...")
+        debug_log(logger, "nginx", "Validating Nginx configuration...")
         
         result = subprocess.run(
             ["sudo", "nginx", "-t"],

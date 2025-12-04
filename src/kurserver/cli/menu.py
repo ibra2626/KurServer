@@ -12,7 +12,7 @@ from rich.prompt import Prompt, Confirm
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from ..core.exceptions import KurServerError
-from ..core.logger import get_logger
+from ..core.logger import get_logger, debug_log
 from ..core.system import get_system_info, get_service_status
 
 # Initialize Rich console
@@ -179,7 +179,7 @@ def show_progress(description: str, task_func, *args, **kwargs):
         Result of task_func
     """
     # DEBUG: Log function entry
-    logger.info(f"[DEBUG] show_progress starting: {description}, function: {task_func.__name__}")
+    debug_log(logger, "general", f"show_progress starting: {description}, function: {task_func.__name__}")
     
     with Progress(
         SpinnerColumn(),
@@ -189,11 +189,11 @@ def show_progress(description: str, task_func, *args, **kwargs):
         task = progress.add_task(description, total=None)
         
         try:
-            logger.info(f"[DEBUG] Executing task function: {task_func.__name__}")
+            debug_log(logger, "general", f"Executing task function: {task_func.__name__}")
             result = task_func(*args, **kwargs)
-            logger.info(f"[DEBUG] Task function completed successfully with result: {result}")
+            debug_log(logger, "general", f"Task function completed successfully with result: {result}")
             progress.update(task, description=f"[green]✓ {description}[/green]")
-            logger.info(f"[DEBUG] Progress updated to success, about to return result")
+            debug_log(logger, "general", "Progress updated to success, about to return result")
             return result
         except Exception as e:
             logger.error(f"[DEBUG] Task function failed with exception: {type(e).__name__}: {e}")
@@ -257,7 +257,7 @@ def create_main_menu() -> Menu:
         MenuOption("1", "Install Nginx", action=install_nginx_menu),
         MenuOption("2", "Install MySQL/MariaDB", action=install_mysql_menu),
         MenuOption("3", "Install PHP-FPM", action=install_php_menu),
-        MenuOption("4", "Add new website", action=manage_nginx_menu),
+        MenuOption("4", "Manage Web Sites", action=manage_nginx_menu),
         MenuOption("5", "Manage databases", action=manage_database_menu),
         MenuOption("6", "GitHub deployment", action=github_deployment_menu),
         MenuOption("7", "Configuration management", action=config_management_menu),
