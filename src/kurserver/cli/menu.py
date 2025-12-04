@@ -248,18 +248,18 @@ def create_main_menu() -> Menu:
     from ..installers.nginx import install_nginx_menu
     from ..installers.mysql import install_mysql_menu
     from ..installers.php import install_php_menu
-    from ..managers.nginx import manage_nginx_menu
+    from ..managers.nginx import site_management_menu
     from ..managers.database import manage_database_menu
-    from ..deployment.github import github_deployment_menu
+    from ..managers.github_settings import github_settings_menu
     from ..config.manager import config_management_menu
     
     options = [
         MenuOption("1", "Install Nginx", action=install_nginx_menu),
         MenuOption("2", "Install MySQL/MariaDB", action=install_mysql_menu),
         MenuOption("3", "Install PHP-FPM", action=install_php_menu),
-        MenuOption("4", "Manage Web Sites", action=manage_nginx_menu),
+        MenuOption("4", "Site Management", action=site_management_menu),
         MenuOption("5", "Manage databases", action=manage_database_menu),
-        MenuOption("6", "GitHub deployment", action=github_deployment_menu),
+        MenuOption("6", "GitHub settings", action=github_settings_menu),
         MenuOption("7", "Configuration management", action=config_management_menu),
         MenuOption("8", "System status", action=show_system_status_menu),
         MenuOption("9", "Uninstall components", action=uninstall_main_menu),
@@ -319,6 +319,7 @@ def show_system_status_menu(verbose: bool = False) -> None:
         
     except Exception as e:
         console.print(f"[bold red]Error getting system status:[/bold red] {e}")
+
 
 
 def uninstall_main_menu(verbose: bool = False) -> None:

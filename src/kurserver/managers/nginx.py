@@ -9,16 +9,16 @@ from ..core.system import get_available_php_versions, reload_nginx
 logger = get_logger()
 
 
-def manage_nginx_menu(verbose: bool = False) -> None:
+def site_management_menu(verbose: bool = False) -> None:
     """
-    Handle Nginx site management from the menu.
+    Handle unified site management from the menu.
     
     Args:
         verbose (bool): Enable verbose output
     """
     from ..cli.menu import console, Menu, MenuOption
     
-    console.print("[bold blue]Nginx Site Management[/bold blue]")
+    console.print("[bold blue]Site Management[/bold blue]")
     console.print()
     
     # Check if Nginx is installed
@@ -31,19 +31,31 @@ def manage_nginx_menu(verbose: bool = False) -> None:
     options = [
         MenuOption("1", "Add new website", action=add_new_site),
         MenuOption("2", "List existing sites", action=list_sites),
-        MenuOption("3", "Remove website", action=remove_site),
-        MenuOption("4", "Enable/disable site", action=toggle_site),
-        MenuOption("5", "Site information", action=site_info),
-        MenuOption("6", "Manage SSL certificates", action=manage_ssl),
+        MenuOption("3", "Update existing site", action=update_existing_site),
+        MenuOption("4", "Remove website", action=remove_site),
+        MenuOption("5", "Enable/disable site", action=toggle_site),
+        MenuOption("6", "Site information", action=site_info),
+        MenuOption("7", "Manage SSL certificates", action=manage_ssl),
     ]
     
-    submenu = Menu("Nginx Site Management", options, show_status=False)
+    submenu = Menu("Site Management", options, show_status=False)
     submenu.display(verbose=verbose)
+
+
+# Backward compatibility alias
+def manage_nginx_menu(verbose: bool = False) -> None:
+    """
+    Backward compatibility wrapper for site_management_menu.
+    
+    Args:
+        verbose (bool): Enable verbose output
+    """
+    site_management_menu(verbose)
 
 
 def add_new_site(verbose: bool = False) -> None:
     """
-    Add a new website configuration.
+    Add a new website configuration with unified deployment workflow.
     
     Args:
         verbose (bool): Enable verbose output
@@ -53,7 +65,7 @@ def add_new_site(verbose: bool = False) -> None:
     console.print("[bold blue]Add New Website[/bold blue]")
     console.print()
     
-    # Get site information
+    # Get basic site information first
     domain = get_user_input("Enter domain name (e.g., example.com)")
     
     # Validate domain
@@ -65,11 +77,66 @@ def add_new_site(verbose: bool = False) -> None:
     default_root = f"/var/www/{domain}"
     web_root = get_user_input(f"Enter web root directory", default=default_root)
     
+    # Ask about deployment method FIRST (this is the key change)
+    console.print("\n[bold]Site Deployment Method:[/bold]")
+    console.print("  [1] GitHub - Clone from GitHub repository")
+    console.print("  [2] Manual - Create placeholder site")
+    console.print("  [3] Empty - Create configuration only, no files")
+    
+    while True:
+        try:
+            choice = get_user_input("Select deployment method (1-3)", default="2")
+            choice_num = int(choice)
+            
+            if choice_num == 1:
+                deployment_method = "github"
+                break
+            elif choice_num == 2:
+                deployment_method = "manual"
+                break
+            elif choice_num == 3:
+                deployment_method = "empty"
+                break
+            else:
+                console.print("[red]Invalid selection. Please enter a number between 1 and 3.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
+    
+    # Handle GitHub-specific configuration
+    github_url = None
+    github_branch = "main"
+    github_token = None
+    is_private = False
+    
+    if deployment_method == "github":
+        console.print("\n[bold]GitHub Configuration:[/bold]")
+        github_url = get_user_input("Enter GitHub repository URL")
+        
+        # Validate GitHub URL
+        from ..deployment.github import _validate_github_url
+        if not _validate_github_url(github_url):
+            console.print("[red]Invalid GitHub repository URL.[/red]")
+            return
+        
+        github_branch = get_user_input("Enter branch name", default="main")
+        is_private = confirm_action("Is this a private repository?")
+        
+        if is_private:
+            from ..deployment.github import _get_github_token
+            github_token = _get_github_token()
+            if not github_token:
+                console.print("[red]GitHub token is required for private repositories.[/red]")
+                console.print("[yellow]Please configure GitHub token first via 'GitHub settings' menu.[/yellow]")
+                return
+    
+    # Now ask about server configuration (same for all deployment methods)
+    console.print("\n[bold]Server Configuration:[/bold]")
+    
     # Ask about SSL
     console.print("\n[bold]SSL/HTTPS Configuration:[/bold]")
     console.print("  [1] None - No SSL certificate")
-    console.print("  [2] Self-signed - Generate a self-signed certificate")
-    console.print("  [3] Let's Encrypt - Obtain a free SSL certificate")
+    console.print("  [2] Self-signed - Create self-signed certificate")
+    console.print("  [3] Let's Encrypt - Get free SSL certificate")
     
     while True:
         try:
@@ -103,7 +170,7 @@ def add_new_site(verbose: bool = False) -> None:
         installed_php_versions = get_available_php_versions()
         
         if not installed_php_versions:
-            console.print("[red]No PHP-FPM versions are installed. Please install PHP-FPM first.[/red]")
+            console.print("[red]No PHP-FPM versions installed. Please install PHP-FPM first.[/red]")
             return
         
         console.print("\n[bold]Available PHP Versions:[/bold]")
@@ -123,41 +190,6 @@ def add_new_site(verbose: bool = False) -> None:
             except ValueError:
                 console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
-    # Ask about deployment method
-    console.print("\n[bold]Deployment Options:[/bold]")
-    console.print("  [1] GitHub - Clone from a GitHub repository")
-    console.print("  [2] Manual - Create a placeholder site")
-    console.print("  [3] Skip - Just create configuration without files")
-    
-    while True:
-        try:
-            choice = get_user_input("Select deployment method (1-3)")
-            choice_num = int(choice)
-            
-            if choice_num == 1:
-                deployment_method = "github"
-                break
-            elif choice_num == 2:
-                deployment_method = "manual"
-                break
-            elif choice_num == 3:
-                deployment_method = "skip"
-                break
-            else:
-                console.print("[red]Invalid selection. Please enter a number between 1 and 3.[/red]")
-        except ValueError:
-            console.print("[red]Invalid input. Please enter a valid number.[/red]")
-    
-    # Handle deployment
-    if deployment_method == "github":
-        github_url = get_user_input("Enter GitHub repository URL")
-        is_private = confirm_action("Is this a private repository?")
-        
-        if is_private:
-            github_token = get_user_input("Enter GitHub access token", password=True)
-        else:
-            github_token = None
-    
     # Get email for Let's Encrypt if needed
     email = None
     if use_letsencrypt:
@@ -172,13 +204,15 @@ def add_new_site(verbose: bool = False) -> None:
     console.print("\n[bold]Site Configuration Summary:[/bold]")
     console.print(f"Domain: {domain}")
     console.print(f"Web Root: {web_root}")
-    console.print(f"SSL: {ssl_option}")
-    console.print(f"PHP: {'Enabled (' + php_version + ')' if enable_php else 'Disabled'}")
-    console.print(f"Deployment: {deployment_method}")
+    console.print(f"Deployment Method: {deployment_method}")
     
     if deployment_method == "github":
         console.print(f"GitHub URL: {github_url}")
+        console.print(f"Branch: {github_branch}")
         console.print(f"Private: {'Yes' if is_private else 'No'}")
+    
+    console.print(f"SSL: {ssl_option}")
+    console.print(f"PHP: {'Enabled (' + php_version + ')' if enable_php else 'Disabled'}")
     
     if use_letsencrypt:
         console.print(f"Email for certificate: {email}")
@@ -204,20 +238,33 @@ def add_new_site(verbose: bool = False) -> None:
             )
         
         # Deploy site if requested
-        if deployment_method != "skip":
+        if deployment_method != "empty":
             show_progress(
                 "Deploying website...",
                 _deploy_site,
                 domain, deployment_method, github_url if deployment_method == "github" else None,
+                github_branch if deployment_method == "github" else None,
                 github_token if deployment_method == "github" and is_private else None,
                 verbose
             )
+            
+            # Save deployment info for GitHub deployments
+            if deployment_method == "github":
+                _save_deployment_info(domain, github_url, github_branch, f"/var/www/{domain}", is_private)
         
         console.print(f"[bold green]✓ Website '{domain}' created successfully![/bold green]")
         
         if use_letsencrypt:
             console.print("[green]✓ Let's Encrypt certificate installed![/green]")
             console.print(f"[yellow]Note: SSL certificate will auto-renew. Check logs at /var/log/letsencrypt/[/yellow]")
+        
+        # Show next steps based on deployment method
+        if deployment_method == "github":
+            console.print(f"[green]✓ Site deployed from GitHub![/green]")
+            console.print(f"[cyan]Use 'Site Management' > 'Update existing site' to pull updates.[/cyan]")
+        elif deployment_method == "manual":
+            console.print(f"[green]✓ Placeholder site created![/green]")
+            console.print(f"[cyan]Upload your files to: {web_root}[/cyan]")
         
     except Exception as e:
         console.print(f"[bold red]✗ Website creation failed:[/bold red] {e}")
@@ -458,7 +505,7 @@ def _setup_ssl(domain: str, ssl_option: str, email: str = None, verbose: bool = 
 
 
 def _deploy_site(domain: str, method: str, github_url: str = None,
-                github_token: str = None, verbose: bool = False) -> None:
+                github_branch: str = None, github_token: str = None, verbose: bool = False) -> None:
     """
     Deploy website files.
     
@@ -466,6 +513,7 @@ def _deploy_site(domain: str, method: str, github_url: str = None,
         domain (str): Domain name
         method (str): Deployment method
         github_url (str): GitHub URL (if method is github)
+        github_branch (str): GitHub branch (if method is github)
         github_token (str): GitHub token (if private repo)
         verbose (bool): Enable verbose output
     """
@@ -514,9 +562,9 @@ def _deploy_site(domain: str, method: str, github_url: str = None,
         if github_token:
             # For private repos, use token in URL
             url_with_token = github_url.replace('https://', f'https://{github_token}@')
-            subprocess.run(["git", "clone", url_with_token, web_root], check=True)
+            subprocess.run(["git", "clone", "-b", github_branch or "main", url_with_token, web_root], check=True)
         else:
-            subprocess.run(["git", "clone", github_url, web_root], check=True)
+            subprocess.run(["git", "clone", "-b", github_branch or "main", github_url, web_root], check=True)
     
     elif method == "manual":
         if verbose:
@@ -1209,3 +1257,173 @@ def _update_ssl_config(domain: str, cert_type: str) -> None:
     
     # Test configuration
     subprocess.run(["sudo", "nginx", "-t"], check=True)
+
+
+def _save_deployment_info(domain: str, repo_url: str, branch: str,
+                        web_root: str, is_private: bool) -> None:
+    """Save deployment information."""
+    from ..deployment.github import _save_deployment_info as github_save_deployment_info
+    github_save_deployment_info(domain, repo_url, branch, web_root, is_private)
+
+
+def _get_deployment_info(domain: str) -> dict:
+    """Get deployment information for a domain."""
+    from ..deployment.github import _get_deployments
+    deployments = _get_deployments()
+    return deployments.get(domain, {})
+
+
+def update_existing_site(verbose: bool = False) -> None:
+    """
+    Update existing site with unified interface for all deployment types.
+    
+    Args:
+        verbose (bool): Enable verbose output
+    """
+    from ..cli.menu import console, Menu, MenuOption
+    from ..deployment.github import _get_deployments, _update_deployment, _full_redeploy
+    
+    console.print("[bold blue]Update Existing Site[/bold blue]")
+    console.print()
+    
+    # List available sites with numbers
+    sites = list_sites_with_numbers(verbose)
+    
+    if not sites:
+        console.print("[yellow]No sites available to update.[/yellow]")
+        return
+    
+    console.print()
+    
+    # Get site selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Enter site number to update (1-{len(sites)})")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(sites):
+                site = sites[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(sites)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
+    
+    # Check if site has GitHub deployment info
+    deployments = _get_deployments()
+    deployment = deployments.get(site, {})
+    
+    if not deployment:
+        # No GitHub info, prompt to set it up
+        console.print(f"[yellow]No GitHub deployment information found for '{site}'.[/yellow]")
+        if not confirm_action("Would you like to set up GitHub deployment for this site?"):
+            console.print("[yellow]Deployment update cancelled.[/yellow]")
+            return
+        
+        # Get GitHub information
+        github_url = get_user_input("Enter GitHub repository URL")
+        
+        # Validate GitHub URL
+        from ..deployment.github import _validate_github_url
+        if not _validate_github_url(github_url):
+            console.print("[red]Invalid GitHub repository URL.[/red]")
+            return
+        
+        github_branch = get_user_input("Enter branch name", default="main")
+        is_private = confirm_action("Is this a private repository?")
+        
+        github_token = None
+        if is_private:
+            from ..deployment.github import _get_github_token
+            github_token = _get_github_token()
+            if not github_token:
+                console.print("[red]GitHub token is required for private repositories.[/red]")
+                return
+        
+        # Create deployment info
+        deployment = {
+            'domain': site,
+            'repo_url': github_url,
+            'branch': github_branch,
+            'web_root': f"/var/www/{site}",
+            'private': is_private
+        }
+        
+        # Save deployment info
+        _save_deployment_info(site, github_url, github_branch, f"/var/www/{site}", is_private)
+        
+        console.print(f"[green]✓ GitHub deployment information saved for '{site}'[/green]")
+    
+    # Show update options
+    console.print("\n[bold]Site Update Options:[/bold]")
+    console.print("  [1] pull - Pull latest changes from repository")
+    console.print("  [2] branch - Switch to different branch")
+    console.print("  [3] composer - Run composer install/update")
+    console.print("  [4] npm - Run npm install/build")
+    console.print("  [5] env - Update environment file")
+    console.print("  [6] full - Full re-deployment from scratch")
+    
+    while True:
+        try:
+            choice = get_user_input("Select update option (1-6)", default="1")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= 6:
+                update_choice_map = {
+                    1: "pull",
+                    2: "branch",
+                    3: "composer",
+                    4: "npm",
+                    5: "env",
+                    6: "full"
+                }
+                update_choice = update_choice_map[choice_num]
+                break
+            else:
+                console.print("[red]Invalid selection. Please enter a number between 1 and 6.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
+    
+    try:
+        if update_choice == "full":
+            # Full re-deployment
+            show_progress(
+                "Re-deploying from GitHub...",
+                _full_redeploy,
+                deployment, verbose
+            )
+        elif update_choice == "branch":
+            # Branch update - get branch name first
+            from ..deployment.github import _update_deployment_with_branch
+            new_branch = get_user_input("Enter new branch name")
+            
+            # Update with progress
+            show_progress(
+                f"Updating branch to {new_branch}...",
+                _update_deployment_with_branch,
+                deployment, new_branch, verbose
+            )
+        else:
+            # Specific update
+            show_progress(
+                f"Updating {update_choice}...",
+                _update_deployment,
+                deployment, update_choice, verbose
+            )
+        
+        console.print(f"[bold green]✓ Update completed successfully![/bold green]")
+        
+    except Exception as e:
+        console.print(f"[bold red]✗ Update failed:[/bold red] {e}")
+        logger.error(f"Deployment update failed for {site}: {e}")
+
+
+# Backward compatibility alias
+def update_deployment(verbose: bool = False) -> None:
+    """
+    Backward compatibility wrapper for update_existing_site.
+    
+    Args:
+        verbose (bool): Enable verbose output
+    """
+    update_existing_site(verbose)

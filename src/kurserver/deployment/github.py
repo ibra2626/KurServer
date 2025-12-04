@@ -22,8 +22,8 @@ def github_deployment_menu(verbose: bool = False) -> None:
     
     # Create submenu options
     options = [
-        MenuOption("1", "Deploy from GitHub repository", action=deploy_from_github),
-        MenuOption("2", "Update existing deployment", action=update_deployment),
+        MenuOption("1", "Deploy new site from GitHub", action=deploy_from_github),
+        MenuOption("2", "Update existing site from GitHub", action=update_deployment),
         MenuOption("3", "Configure GitHub token", action=configure_github_token),
         MenuOption("4", "List deployments", action=list_deployments),
     ]
@@ -122,6 +122,7 @@ def deploy_from_github(verbose: bool = False) -> None:
 
 
 def update_deployment(verbose: bool = False) -> None:
+    
     """
     Update an existing deployment from GitHub.
     
@@ -166,20 +167,32 @@ def update_deployment(verbose: bool = False) -> None:
         default="pull"
     )
     
+    
     try:
         if update_choice == "full":
             # Full re-deployment
             show_progress(
                 "Re-deploying from GitHub...",
                 _full_redeploy,
-                deployment, verbose
+                deployment, domain, verbose
+            )
+        elif update_choice == "branch":
+            # Get branch name before showing progress
+            new_branch = get_user_input("Enter new branch name")
+            
+            console.print(new_branch)
+            # Update with progress
+            show_progress(
+                f"Updating branch to {new_branch}...",
+                _update_deployment_with_branch,
+                deployment, domain, new_branch, verbose
             )
         else:
             # Specific update
             show_progress(
                 f"Updating {update_choice}...",
                 _update_deployment,
-                deployment, update_choice, verbose
+                deployment, domain, update_choice, verbose
             )
         
         console.print(f"[bold green]✓ Update completed successfully![/bold green]")
@@ -335,15 +348,19 @@ def _deploy_from_github(repo_url: str, branch: str, domain: str, web_root: str,
     logger.info(f"Deployment from {repo_url} completed successfully")
 
 
-def _update_deployment(deployment: dict, update_type: str, verbose: bool = False) -> None:
+def _update_deployment(deployment: dict, domain: str, update_type: str, verbose: bool = False) -> None:
     """
     Update specific aspects of a deployment.
     
     Args:
         deployment (dict): Deployment information
+        domain (str): Domain name for the deployment
         update_type (str): Type of update to perform
         verbose (bool): Enable verbose output
     """
+    # Check if deployment has required fields
+    if not deployment or 'web_root' not in deployment:
+        raise Exception("Invalid deployment information. Missing web root directory.")
     import subprocess
     import os
     
@@ -362,27 +379,18 @@ def _update_deployment(deployment: dict, update_type: str, verbose: bool = False
         if verbose:
             logger.info("Pulling latest changes...")
         
+        # Fix Git ownership issue by setting safe directory
+        try:
+            subprocess.run(["git", "config", "--global", "--add", "safe.directory", web_root], check=True)
+        except subprocess.CalledProcessError:
+            # Ignore if safe directory already exists or other config issues
+            pass
+        
         subprocess.run(["git", "pull"], cwd=web_root, check=True)
         
     elif update_type == "branch":
-        new_branch = get_user_input("Enter new branch name")
-        
-        if verbose:
-            logger.info(f"Switching to branch {new_branch}...")
-        
-        subprocess.run(["git", "fetch"], cwd=web_root, check=True)
-        subprocess.run(["git", "checkout", new_branch], cwd=web_root, check=True)
-        subprocess.run(["git", "pull"], cwd=web_root, check=True)
-        
-        # Update deployment info
-        deployment['branch'] = new_branch
-        _save_deployment_info(
-            deployment['domain'], 
-            deployment['repo_url'], 
-            new_branch, 
-            web_root, 
-            deployment['private']
-        )
+        # This should not be called directly anymore - use _update_deployment_with_branch instead
+        raise Exception("Use _update_deployment_with_branch instead")
         
     elif update_type == "composer":
         if os.path.exists(os.path.join(web_root, "composer.json")):
@@ -415,15 +423,74 @@ def _update_deployment(deployment: dict, update_type: str, verbose: bool = False
             logger.warning("package.json not found")
             
     elif update_type == "env":
-        _create_env_file(web_root, deployment['domain'], verbose)
+        _create_env_file(web_root, domain, verbose)
 
 
-def _full_redeploy(deployment: dict, verbose: bool = False) -> None:
+def _update_deployment_with_branch(deployment: dict, domain: str, new_branch: str, verbose: bool = False) -> None:
+    
+    """
+    Update deployment to switch to a different branch.
+    
+    Args:
+        deployment (dict): Deployment information
+        domain (str): Domain name for the deployment
+        new_branch (str): New branch name to switch to
+        verbose (bool): Enable verbose output
+    """
+    import subprocess
+    import os
+    
+    # DEBUG: Log the deployment structure to understand the issue
+    logger.debug(f"[DEBUG] Deployment structure: {deployment}")
+    logger.debug(f"[DEBUG] Deployment keys: {list(deployment.keys()) if deployment else 'None'}")
+    
+    # Check if deployment has required fields
+    if not deployment or 'web_root' not in deployment:
+        raise Exception("Invalid deployment information. Missing web root directory.")
+    
+    # Check if Git is installed, install if missing
+    from ..utils.package import is_package_installed, install_package
+    if not is_package_installed("git"):
+        if verbose:
+            logger.info("Git is not installed. Installing Git...")
+        
+        if not install_package("git", verbose):
+            raise Exception("Failed to install Git. Please install it manually.")
+    
+    web_root = deployment['web_root']
+    
+    if verbose:
+        logger.info(f"Switching to branch {new_branch}...")
+    
+    # Fix Git ownership issue by setting safe directory
+    try:
+        subprocess.run(["git", "config", "--global", "--add", "safe.directory", web_root], check=True)
+    except subprocess.CalledProcessError:
+        # Ignore if safe directory already exists or other config issues
+        pass
+    
+    subprocess.run(["git", "fetch"], cwd=web_root, check=True)
+    subprocess.run(["git", "checkout", new_branch], cwd=web_root, check=True)
+    subprocess.run(["git", "pull"], cwd=web_root, check=True)
+    
+    # Update deployment info
+    deployment['branch'] = new_branch
+    _save_deployment_info(
+        domain,
+        deployment['repo_url'],
+        new_branch,
+        web_root,
+        deployment['private']
+    )
+
+
+def _full_redeploy(deployment: dict, domain: str, verbose: bool = False) -> None:
     """
     Perform a full re-deployment from scratch.
     
     Args:
         deployment (dict): Deployment information
+        domain (str): Domain name for the deployment
         verbose (bool): Enable verbose output
     """
     import subprocess
@@ -452,7 +519,7 @@ def _full_redeploy(deployment: dict, verbose: bool = False) -> None:
         _deploy_from_github(
             deployment['repo_url'],
             deployment['branch'],
-            deployment['domain'],
+            domain,
             web_root,
             github_token,
             True,  # run_composer
@@ -640,6 +707,26 @@ def _save_deployment_info(domain: str, repo_url: str, branch: str,
     # Save deployments
     with open(deployments_file, 'w') as f:
         json.dump(deployments, f, indent=2)
+
+
+def _remove_deployment(domain: str) -> None:
+    """Remove deployment information for a domain."""
+    import os
+    import json
+    
+    deployments_file = os.path.expanduser("~/.kurserver/deployments/github.json")
+    
+    # Load existing deployments
+    deployments = _get_deployments()
+    
+    # Remove the specified domain
+    if domain in deployments:
+        del deployments[domain]
+        
+        # Save updated deployments
+        os.makedirs(os.path.dirname(deployments_file), exist_ok=True)
+        with open(deployments_file, 'w') as f:
+            json.dump(deployments, f, indent=2)
 
 
 def _get_deployments() -> dict:
