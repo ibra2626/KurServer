@@ -178,6 +178,9 @@ def show_progress(description: str, task_func, *args, **kwargs):
     Returns:
         Result of task_func
     """
+    # DEBUG: Log function entry
+    logger.info(f"[DEBUG] show_progress starting: {description}, function: {task_func.__name__}")
+    
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -186,11 +189,17 @@ def show_progress(description: str, task_func, *args, **kwargs):
         task = progress.add_task(description, total=None)
         
         try:
+            logger.info(f"[DEBUG] Executing task function: {task_func.__name__}")
             result = task_func(*args, **kwargs)
+            logger.info(f"[DEBUG] Task function completed successfully with result: {result}")
             progress.update(task, description=f"[green]✓ {description}[/green]")
+            logger.info(f"[DEBUG] Progress updated to success, about to return result")
             return result
         except Exception as e:
+            logger.error(f"[DEBUG] Task function failed with exception: {type(e).__name__}: {e}")
+            logger.error(f"[DEBUG] Exception traceback: {e.__traceback__}")
             progress.update(task, description=f"[red]✗ {description}[/red]")
+            logger.error(f"[DEBUG] Progress updated to failure, about to re-raise exception")
             raise
 
 
@@ -241,6 +250,8 @@ def create_main_menu() -> Menu:
     from ..installers.php import install_php_menu
     from ..managers.nginx import manage_nginx_menu
     from ..managers.database import manage_database_menu
+    from ..deployment.github import github_deployment_menu
+    from ..config.manager import config_management_menu
     
     options = [
         MenuOption("1", "Install Nginx", action=install_nginx_menu),
@@ -248,7 +259,10 @@ def create_main_menu() -> Menu:
         MenuOption("3", "Install PHP-FPM", action=install_php_menu),
         MenuOption("4", "Add new website", action=manage_nginx_menu),
         MenuOption("5", "Manage databases", action=manage_database_menu),
-        MenuOption("6", "System status", action=show_system_status_menu),
+        MenuOption("6", "GitHub deployment", action=github_deployment_menu),
+        MenuOption("7", "Configuration management", action=config_management_menu),
+        MenuOption("8", "System status", action=show_system_status_menu),
+        MenuOption("9", "Uninstall components", action=uninstall_main_menu),
     ]
     
     return Menu("KurServer CLI - Main Menu", options)
@@ -305,3 +319,14 @@ def show_system_status_menu(verbose: bool = False) -> None:
         
     except Exception as e:
         console.print(f"[bold red]Error getting system status:[/bold red] {e}")
+
+
+def uninstall_main_menu(verbose: bool = False) -> None:
+    """
+    Display the uninstallation menu and handle user interaction.
+    
+    Args:
+        verbose (bool): Enable verbose output
+    """
+    from .uninstall_menu import uninstall_menu
+    uninstall_menu(verbose=verbose)

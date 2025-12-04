@@ -4,6 +4,7 @@ Nginx site manager module for KurServer CLI.
 
 from ..core.logger import get_logger
 from ..cli.menu import get_user_input, confirm_action, show_progress
+from ..core.system import get_available_php_versions, reload_nginx
 
 logger = get_logger()
 
@@ -32,6 +33,8 @@ def manage_nginx_menu(verbose: bool = False) -> None:
         MenuOption("2", "List existing sites", action=list_sites),
         MenuOption("3", "Remove website", action=remove_site),
         MenuOption("4", "Enable/disable site", action=toggle_site),
+        MenuOption("5", "Site information", action=site_info),
+        MenuOption("6", "Manage SSL certificates", action=manage_ssl),
     ]
     
     submenu = Menu("Nginx Site Management", options, show_status=False)
@@ -63,7 +66,32 @@ def add_new_site(verbose: bool = False) -> None:
     web_root = get_user_input(f"Enter web root directory", default=default_root)
     
     # Ask about SSL
-    enable_ssl = confirm_action("Enable SSL/HTTPS?")
+    console.print("\n[bold]SSL/HTTPS Configuration:[/bold]")
+    console.print("  [1] None - No SSL certificate")
+    console.print("  [2] Self-signed - Generate a self-signed certificate")
+    console.print("  [3] Let's Encrypt - Obtain a free SSL certificate")
+    
+    while True:
+        try:
+            choice = get_user_input("Select SSL configuration (1-3)", default="1")
+            choice_num = int(choice)
+            
+            if choice_num == 1:
+                ssl_option = "none"
+                break
+            elif choice_num == 2:
+                ssl_option = "self-signed"
+                break
+            elif choice_num == 3:
+                ssl_option = "letsencrypt"
+                break
+            else:
+                console.print("[red]Invalid selection. Please enter a number between 1 and 3.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
+    
+    enable_ssl = ssl_option != "none"
+    use_letsencrypt = ssl_option == "letsencrypt"
     
     # Ask about PHP
     enable_php = confirm_action("Enable PHP processing?")
@@ -71,19 +99,54 @@ def add_new_site(verbose: bool = False) -> None:
     # Get PHP version if PHP is enabled
     php_version = None
     if enable_php:
-        php_version = get_user_input(
-            "Select PHP version",
-            choices=["7.4", "8.0", "8.1", "8.2"],
-            default="8.1"
-        )
+        # Get installed PHP versions dynamically
+        installed_php_versions = get_available_php_versions()
+        
+        if not installed_php_versions:
+            console.print("[red]No PHP-FPM versions are installed. Please install PHP-FPM first.[/red]")
+            return
+        
+        console.print("\n[bold]Available PHP Versions:[/bold]")
+        for i, version in enumerate(installed_php_versions, 1):
+            console.print(f"  [{i}] PHP {version}")
+        
+        while True:
+            try:
+                choice = get_user_input(f"Select PHP version (1-{len(installed_php_versions)})", default="1")
+                choice_num = int(choice)
+                
+                if 1 <= choice_num <= len(installed_php_versions):
+                    php_version = installed_php_versions[choice_num - 1]
+                    break
+                else:
+                    console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(installed_php_versions)}.[/red]")
+            except ValueError:
+                console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     # Ask about deployment method
     console.print("\n[bold]Deployment Options:[/bold]")
-    deployment_method = get_user_input(
-        "How would you like to deploy the site?",
-        choices=["github", "manual", "skip"],
-        default="manual"
-    )
+    console.print("  [1] GitHub - Clone from a GitHub repository")
+    console.print("  [2] Manual - Create a placeholder site")
+    console.print("  [3] Skip - Just create configuration without files")
+    
+    while True:
+        try:
+            choice = get_user_input("Select deployment method (1-3)")
+            choice_num = int(choice)
+            
+            if choice_num == 1:
+                deployment_method = "github"
+                break
+            elif choice_num == 2:
+                deployment_method = "manual"
+                break
+            elif choice_num == 3:
+                deployment_method = "skip"
+                break
+            else:
+                console.print("[red]Invalid selection. Please enter a number between 1 and 3.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     # Handle deployment
     if deployment_method == "github":
@@ -95,17 +158,30 @@ def add_new_site(verbose: bool = False) -> None:
         else:
             github_token = None
     
+    # Get email for Let's Encrypt if needed
+    email = None
+    if use_letsencrypt:
+        email = get_user_input("Enter email address for Let's Encrypt certificate")
+        
+        # Validate email
+        if '@' not in email or '.' not in email.split('@')[1]:
+            console.print("[red]Invalid email address.[/red]")
+            return
+    
     # Confirm creation
     console.print("\n[bold]Site Configuration Summary:[/bold]")
     console.print(f"Domain: {domain}")
     console.print(f"Web Root: {web_root}")
-    console.print(f"SSL: {'Enabled' if enable_ssl else 'Disabled'}")
+    console.print(f"SSL: {ssl_option}")
     console.print(f"PHP: {'Enabled (' + php_version + ')' if enable_php else 'Disabled'}")
     console.print(f"Deployment: {deployment_method}")
     
     if deployment_method == "github":
         console.print(f"GitHub URL: {github_url}")
         console.print(f"Private: {'Yes' if is_private else 'No'}")
+    
+    if use_letsencrypt:
+        console.print(f"Email for certificate: {email}")
     
     if not confirm_action("\nCreate this website configuration?"):
         console.print("[yellow]Website creation cancelled.[/yellow]")
@@ -116,8 +192,16 @@ def add_new_site(verbose: bool = False) -> None:
         show_progress(
             "Creating website configuration...",
             _create_site_config,
-            domain, web_root, enable_ssl, enable_php, php_version, verbose
+            domain, web_root, ssl_option, enable_php, php_version, verbose
         )
+        
+        # Set up SSL if requested
+        if enable_ssl:
+            show_progress(
+                "Setting up SSL certificate...",
+                _setup_ssl,
+                domain, ssl_option, email if use_letsencrypt else None, verbose
+            )
         
         # Deploy site if requested
         if deployment_method != "skip":
@@ -131,12 +215,16 @@ def add_new_site(verbose: bool = False) -> None:
         
         console.print(f"[bold green]✓ Website '{domain}' created successfully![/bold green]")
         
+        if use_letsencrypt:
+            console.print("[green]✓ Let's Encrypt certificate installed![/green]")
+            console.print(f"[yellow]Note: SSL certificate will auto-renew. Check logs at /var/log/letsencrypt/[/yellow]")
+        
     except Exception as e:
         console.print(f"[bold red]✗ Website creation failed:[/bold red] {e}")
         logger.error(f"Website creation failed for {domain}: {e}")
 
 
-def _create_site_config(domain: str, web_root: str, enable_ssl: bool, 
+def _create_site_config(domain: str, web_root: str, ssl_option: str,
                        enable_php: bool, php_version: str, verbose: bool = False) -> None:
     """
     Create Nginx site configuration.
@@ -144,7 +232,7 @@ def _create_site_config(domain: str, web_root: str, enable_ssl: bool,
     Args:
         domain (str): Domain name
         web_root (str): Web root directory
-        enable_ssl (bool): Enable SSL
+        ssl_option (str): SSL option ('none', 'self-signed', 'letsencrypt')
         enable_php (bool): Enable PHP
         php_version (str): PHP version
         verbose (bool): Enable verbose output
@@ -166,7 +254,7 @@ def _create_site_config(domain: str, web_root: str, enable_ssl: bool,
     config_path = f"/etc/nginx/sites-available/{domain}"
     
     # Generate configuration content
-    config_content = _generate_nginx_config(domain, web_root, enable_ssl, enable_php, php_version)
+    config_content = _generate_nginx_config(domain, web_root, ssl_option, enable_php, php_version)
     
     # Write configuration file
     with open(f"/tmp/{domain}.conf", 'w') as f:
@@ -182,12 +270,13 @@ def _create_site_config(domain: str, web_root: str, enable_ssl: bool,
     subprocess.run(["sudo", "nginx", "-t"], check=True)
     
     # Reload nginx
-    subprocess.run(["sudo", "systemctl", "reload", "nginx"], check=True)
+    if not reload_nginx():
+        raise Exception("Failed to reload nginx configuration")
     
     logger.info(f"Nginx configuration for {domain} created successfully")
 
 
-def _generate_nginx_config(domain: str, web_root: str, enable_ssl: bool, 
+def _generate_nginx_config(domain: str, web_root: str, ssl_option: str,
                           enable_php: bool, php_version: str) -> str:
     """
     Generate Nginx configuration content.
@@ -195,13 +284,15 @@ def _generate_nginx_config(domain: str, web_root: str, enable_ssl: bool,
     Args:
         domain (str): Domain name
         web_root (str): Web root directory
-        enable_ssl (bool): Enable SSL
+        ssl_option (str): SSL option ('none', 'self-signed', 'letsencrypt')
         enable_php (bool): Enable PHP
         php_version (str): PHP version
     
     Returns:
         str: Nginx configuration content
     """
+    enable_ssl = ssl_option != "none"
+    
     config = f"""server {{
     listen 80;
     server_name {domain};
@@ -224,20 +315,47 @@ def _generate_nginx_config(domain: str, web_root: str, enable_ssl: bool,
     }}
 """
     
-    config += "}\n"
-    
+    # Add redirect to HTTPS if SSL is enabled
     if enable_ssl:
+        config += """
+    location ~ /\.well-known/acme-challenge/ {
+        allow all;
+        root /var/www/html;
+    }
+}
+"""
+        
+        # Add HTTPS server block
         ssl_config = f"""server {{
     listen 443 ssl http2;
     server_name {domain};
     root {web_root};
     index index.html index.php;
     
-    ssl_certificate /etc/ssl/certs/{domain}.crt;
+"""
+        
+        # Set SSL certificate paths based on option
+        if ssl_option == "letsencrypt":
+            ssl_config += f"""    ssl_certificate /etc/letsencrypt/live/{domain}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;
+"""
+        else:  # self-signed
+            ssl_config += f"""    ssl_certificate /etc/ssl/certs/{domain}.crt;
     ssl_certificate_key /etc/ssl/private/{domain}.key;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;
+"""
+        
+        ssl_config += """    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-CHACHA20-POLY1305:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384;
     ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    
+    # Security headers
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options DENY always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     
     access_log /var/log/nginx/{domain}.ssl.access.log;
     error_log /var/log/nginx/{domain}.ssl.error.log;
@@ -257,11 +375,89 @@ def _generate_nginx_config(domain: str, web_root: str, enable_ssl: bool,
         
         ssl_config += "}\n"
         config += ssl_config
+    else:
+        config += "}\n"
     
     return config
 
 
-def _deploy_site(domain: str, method: str, github_url: str = None, 
+def _setup_ssl(domain: str, ssl_option: str, email: str = None, verbose: bool = False) -> None:
+    """
+    Set up SSL certificate for the domain.
+    
+    Args:
+        domain (str): Domain name
+        ssl_option (str): SSL option ('self-signed' or 'letsencrypt')
+        email (str): Email address for Let's Encrypt (if applicable)
+        verbose (bool): Enable verbose output
+    """
+    import subprocess
+    import os
+    
+    if ssl_option == "self-signed":
+        if verbose:
+            logger.info(f"Creating self-signed certificate for {domain}")
+        
+        # Create SSL directory if it doesn't exist
+        subprocess.run(["sudo", "mkdir", "-p", "/etc/ssl/certs", "/etc/ssl/private"], check=True)
+        
+        # Generate self-signed certificate
+        subprocess.run([
+            "sudo", "openssl", "req", "-x509", "-nodes", "-days", "365",
+            "-newkey", "rsa:2048",
+            "-keyout", f"/etc/ssl/private/{domain}.key",
+            "-out", f"/etc/ssl/certs/{domain}.crt",
+            "-subj", f"/C=US/ST=State/L=City/O=Organization/CN={domain}"
+        ], check=True)
+        
+        # Set appropriate permissions
+        subprocess.run(["sudo", "chmod", "600", f"/etc/ssl/private/{domain}.key"], check=True)
+        subprocess.run(["sudo", "chmod", "644", f"/etc/ssl/certs/{domain}.crt"], check=True)
+        
+        logger.info(f"Self-signed certificate created for {domain}")
+        
+    elif ssl_option == "letsencrypt":
+        if verbose:
+            logger.info(f"Setting up Let's Encrypt certificate for {domain}")
+        
+        # Install certbot if not already installed
+        try:
+            subprocess.run(["which", "certbot"], check=True, capture_output=True)
+        except subprocess.CalledProcessError:
+            if verbose:
+                logger.info("Installing certbot...")
+            
+            subprocess.run(["sudo", "apt", "update"], check=True)
+            subprocess.run(["sudo", "apt", "install", "-y", "certbot", "python3-certbot-nginx"], check=True)
+        
+        # Set up webroot for Let's Encrypt challenge
+        webroot_challenge = "/var/www/html"
+        os.makedirs(webroot_challenge, exist_ok=True)
+        
+        # Obtain certificate
+        cmd = [
+            "sudo", "certbot", "certonly",
+            "--webroot", "-w", webroot_challenge,
+            "--non-interactive", "--agree-tos",
+            "--email", email,
+            "-d", domain
+        ]
+        
+        if verbose:
+            logger.info(f"Running: {' '.join(cmd)}")
+        
+        subprocess.run(cmd, check=True)
+        
+        # Set up auto-renewal
+        cron_job = f"0 12 * * * /usr/bin/certbot renew --quiet"
+        subprocess.run([
+            "sudo", "bash", "-c", f"echo '{cron_job}' | crontab -"
+        ], check=True)
+        
+        logger.info(f"Let's Encrypt certificate obtained for {domain}")
+
+
+def _deploy_site(domain: str, method: str, github_url: str = None,
                 github_token: str = None, verbose: bool = False) -> None:
     """
     Deploy website files.
@@ -275,12 +471,44 @@ def _deploy_site(domain: str, method: str, github_url: str = None,
     """
     import subprocess
     import os
+    import shutil
+    
+    # Check if Git is installed, install if missing
+    from ..utils.package import is_package_installed, install_package
+    if not is_package_installed("git"):
+        if verbose:
+            logger.info("Git is not installed. Installing Git...")
+        
+        if not install_package("git", verbose):
+            raise Exception("Failed to install Git. Please install it manually.")
     
     web_root = f"/var/www/{domain}"
     
     if method == "github":
         if verbose:
             logger.info(f"Cloning repository from {github_url}")
+            logger.info(f"[DEBUG] Web root path: {web_root}")
+            logger.info(f"[DEBUG] Web root exists before clone: {os.path.exists(web_root)}")
+            
+            # Check if directory exists and what's in it
+            if os.path.exists(web_root):
+                logger.info(f"[DEBUG] Directory contents: {os.listdir(web_root)}")
+                logger.info(f"[DEBUG] Is directory empty: {not os.listdir(web_root)}")
+        
+        # Check if web_root already exists and is not empty
+        if os.path.exists(web_root) and os.listdir(web_root):
+            logger.warning(f"[DEBUG] Web root {web_root} exists and is not empty")
+            if verbose:
+                logger.info(f"Web root directory {web_root} already exists and is not empty.")
+                logger.info("Removing existing directory before cloning...")
+            
+            # Remove the existing directory
+            try:
+                shutil.rmtree(web_root)
+                logger.info(f"[DEBUG] Successfully removed existing directory: {web_root}")
+            except Exception as e:
+                logger.error(f"[DEBUG] Failed to remove directory {web_root}: {e}")
+                raise Exception(f"Failed to remove existing web root directory: {e}")
         
         # Clone the repository
         if github_token:
@@ -346,16 +574,86 @@ def list_sites(verbose: bool = False) -> None:
         console.print(f"[red]Error listing sites:[/red] {e}")
 
 
+def list_sites_with_numbers(verbose: bool = False) -> list:
+    """
+    List all configured Nginx sites with numbers for selection.
+    
+    Returns:
+        list: List of site names
+    """
+    from ..cli.menu import console
+    import subprocess
+    
+    console.print("[bold blue]Available Nginx Sites[/bold blue]")
+    console.print()
+    
+    try:
+        # Get enabled sites
+        result = subprocess.run(
+            ["ls", "/etc/nginx/sites-enabled/"],
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode == 0:
+            sites = result.stdout.strip().split('\n') if result.stdout.strip() else []
+            
+            if sites:
+                for i, site in enumerate(sites, 1):
+                    console.print(f"  [{i}] {site}")
+                return sites
+            else:
+                console.print("No sites configured.")
+                return []
+        else:
+            console.print("[red]Failed to list sites.[/red]")
+            return []
+            
+    except Exception as e:
+        console.print(f"[red]Error listing sites:[/red] {e}")
+        return []
+
+
 def remove_site(verbose: bool = False) -> None:
     """Remove a configured Nginx site."""
     from ..cli.menu import console
     import subprocess
+    import os
+    import shutil
     
     console.print("[bold blue]Remove Website[/bold blue]")
     console.print()
     
-    # Get site to remove
-    site = get_user_input("Enter domain name to remove")
+    # List available sites with numbers
+    sites = list_sites_with_numbers(verbose)
+    
+    if not sites:
+        console.print("[yellow]No sites available to remove.[/yellow]")
+        return
+    
+    console.print()
+    
+    # Get site selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Enter site number to remove (1-{len(sites)})")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(sites):
+                site = sites[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(sites)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
+    
+    # Check if web root exists
+    web_root = f"/var/www/{site}"
+    web_root_exists = os.path.exists(web_root)
+    
+    # Show additional warning if web root exists
+    if web_root_exists:
+        console.print(f"[yellow]Warning: Web root directory {web_root} will be permanently deleted.[/yellow]")
     
     if not confirm_action(f"Are you sure you want to remove '{site}'? This action cannot be undone."):
         console.print("[yellow]Site removal cancelled.[/yellow]")
@@ -368,8 +666,22 @@ def remove_site(verbose: bool = False) -> None:
         # Remove configuration
         subprocess.run(["sudo", "rm", "-f", f"/etc/nginx/sites-available/{site}"], check=True)
         
+        # Remove web root directory if it exists
+        if web_root_exists:
+            if verbose:
+                logger.info(f"Removing web root directory: {web_root}")
+            
+            try:
+                shutil.rmtree(web_root)
+                logger.info(f"Web root directory {web_root} removed successfully")
+            except Exception as e:
+                logger.error(f"Failed to remove web root directory {web_root}: {e}")
+                # Continue with site removal even if web root deletion fails
+                console.print(f"[yellow]Warning: Failed to remove web root directory {web_root}: {e}[/yellow]")
+        
         # Reload nginx
-        subprocess.run(["sudo", "systemctl", "reload", "nginx"], check=True)
+        if not reload_nginx():
+            raise Exception("Failed to reload nginx configuration")
         
         console.print(f"[green]✓ Site '{site}' removed successfully![/green]")
         
@@ -415,7 +727,425 @@ def toggle_site(verbose: bool = False) -> None:
             console.print(f"[green]✓ Site '{site}' enabled![/green]")
         
         # Reload nginx
-        subprocess.run(["sudo", "systemctl", "reload", "nginx"], check=True)
+        if not reload_nginx():
+            raise Exception("Failed to reload nginx configuration")
         
     except Exception as e:
         console.print(f"[red]✗ Failed to {action} site:[/red] {e}")
+
+
+def site_info(verbose: bool = False) -> None:
+    """Show detailed information about a specific site."""
+    from ..cli.menu import console
+    import subprocess
+    import os
+    import re
+    
+    console.print("[bold blue]Site Information[/bold blue]")
+    console.print()
+    
+    # Get site to inspect
+    site = get_user_input("Enter domain name")
+    
+    # Check if site exists
+    config_file = f"/etc/nginx/sites-available/{site}"
+    if not os.path.exists(config_file):
+        console.print(f"[red]Site '{site}' not found.[/red]")
+        return
+    
+    try:
+        # Read configuration file
+        with open(config_file, 'r') as f:
+            config_content = f.read()
+        
+        # Extract information from config
+        server_name = re.search(r'server_name\\s+([^;]+);', config_content)
+        root = re.search(r'root\\s+([^;]+);', config_content)
+        listen_ports = re.findall(r'listen\\s+([^;]+);', config_content)
+        ssl_cert = re.search(r'ssl_certificate\\s+([^;]+);', config_content)
+        php_version = re.search(r'fastcgi_pass\\s+unix:/var/run/php/php([^-]+)-fpm\\.sock', config_content)
+        
+        # Display site information
+        console.print(f"[bold]Domain:[/bold] {server_name.group(1).strip() if server_name else 'N/A'}")
+        console.print(f"[bold]Web Root:[/bold] {root.group(1).strip() if root else 'N/A'}")
+        console.print(f"[bold]Listen Ports:[/bold] {', '.join(listen_ports) if listen_ports else 'N/A'}")
+        
+        # SSL status
+        if ssl_cert:
+            cert_path = ssl_cert.group(1).strip()
+            if 'letsencrypt' in cert_path:
+                console.print(f"[bold]SSL:[/bold] Let's Encrypt")
+                # Check certificate expiry
+                try:
+                    result = subprocess.run([
+                        "sudo", "openssl", "x509", "-in", cert_path, "-noout", "-dates"
+                    ], capture_output=True, text=True)
+                    
+                    if result.returncode == 0:
+                        for line in result.stdout.split('\n'):
+                            if 'notAfter=' in line:
+                                expiry_date = line.split('=')[1]
+                                console.print(f"[bold]Certificate Expires:[/bold] {expiry_date}")
+                                break
+                except:
+                    console.print("[bold]Certificate Status:[/bold] Unable to check expiry")
+            else:
+                console.print(f"[bold]SSL:[/bold] Self-signed")
+        else:
+            console.print("[bold]SSL:[/bold] Not configured")
+        
+        # PHP status
+        if php_version:
+            php_ver = php_version.group(1).strip()
+            console.print(f"[bold]PHP:[/bold] {php_ver}")
+            
+            # Check if PHP-FPM is running
+            try:
+                result = subprocess.run([
+                    "systemctl", "is-active", f"php{php_ver}-fpm"
+                ], capture_output=True, text=True)
+                
+                status = result.stdout.strip()
+                if status == "active":
+                    console.print(f"[bold]PHP-FPM Status:[/bold] [green]Running[/green]")
+                else:
+                    console.print(f"[bold]PHP-FPM Status:[/bold] [red]Not running[/red]")
+            except:
+                console.print(f"[bold]PHP-FPM Status:[/bold] [yellow]Unknown[/yellow]")
+        else:
+            console.print("[bold]PHP:[/bold] Not configured")
+        
+        # Check if site is enabled
+        is_enabled = os.path.exists(f"/etc/nginx/sites-enabled/{site}")
+        console.print(f"[bold]Status:[/bold] {'[green]Enabled[/green]' if is_enabled else '[red]Disabled[/red]'}")
+        
+        # Disk usage
+        if root:
+            web_root = root.group(1).strip()
+            if os.path.exists(web_root):
+                try:
+                    result = subprocess.run([
+                        "du", "-sh", web_root
+                    ], capture_output=True, text=True)
+                    
+                    if result.returncode == 0:
+                        usage = result.stdout.split('\t')[0]
+                        console.print(f"[bold]Disk Usage:[/bold] {usage}")
+                except:
+                    console.print("[bold]Disk Usage:[/bold] Unable to calculate")
+        
+        # Access logs summary (last 5 lines)
+        access_log = f"/var/log/nginx/{site}.access.log"
+        if os.path.exists(access_log):
+            console.print("\n[bold]Recent Access Logs (last 5 entries):[/bold]")
+            try:
+                result = subprocess.run([
+                    "tail", "-5", access_log
+                ], capture_output=True, text=True)
+                
+                if result.returncode == 0:
+                    for line in result.stdout.strip().split('\n'):
+                        if line.strip():
+                            # Extract IP, date, and request
+                            parts = line.split(' ')
+                            if len(parts) >= 7:
+                                ip = parts[0]
+                                date = parts[3].lstrip('[')
+                                request = ' '.join(parts[5:7])
+                                console.print(f"  {ip} - {date} - {request}")
+            except:
+                console.print("  Unable to read access logs")
+        
+    except Exception as e:
+        console.print(f"[red]Error getting site information:[/red] {e}")
+
+
+def manage_ssl(verbose: bool = False) -> None:
+    """Manage SSL certificates for sites."""
+    from ..cli.menu import console, Menu, MenuOption
+    
+    console.print("[bold blue]SSL Certificate Management[/bold blue]")
+    console.print()
+    
+    # Create SSL management options
+    options = [
+        MenuOption("1", "List SSL certificates", action=list_ssl_certs),
+        MenuOption("2", "Renew Let's Encrypt certificate", action=renew_ssl_cert),
+        MenuOption("3", "Install new certificate", action=install_ssl_cert),
+    ]
+    
+    submenu = Menu("SSL Certificate Management", options, show_status=False)
+    submenu.display(verbose=verbose)
+
+
+def list_ssl_certs(verbose: bool = False) -> None:
+    """List all SSL certificates."""
+    from ..cli.menu import console
+    import subprocess
+    import os
+    
+    console.print("[bold blue]SSL Certificates[/bold blue]")
+    console.print()
+    
+    # List Let's Encrypt certificates
+    if os.path.exists("/etc/letsencrypt/live"):
+        console.print("[bold]Let's Encrypt Certificates:[/bold]")
+        try:
+            result = subprocess.run([
+                "sudo", "find", "/etc/letsencrypt/live", "-maxdepth", "1", "-type", "l", "-exec", "basename", "{}", ";"
+            ], capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                domains = result.stdout.strip().split('\n') if result.stdout.strip() else []
+                
+                for domain in domains:
+                    if domain.strip():
+                        cert_path = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
+                        if os.path.exists(cert_path):
+                            # Check expiry
+                            try:
+                                cert_result = subprocess.run([
+                                    "sudo", "openssl", "x509", "-in", cert_path, "-noout", "-dates"
+                                ], capture_output=True, text=True)
+                                
+                                if cert_result.returncode == 0:
+                                    for line in cert_result.stdout.split('\n'):
+                                        if 'notAfter=' in line:
+                                            expiry_date = line.split('=')[1]
+                                            console.print(f"  • {domain} - Expires: {expiry_date}")
+                                            break
+                            except:
+                                console.print(f"  • {domain} - [red]Unable to check expiry[/red]")
+        except Exception as e:
+            console.print(f"[red]Error listing Let's Encrypt certificates:[/red] {e}")
+    
+    # List self-signed certificates
+    console.print("\n[bold]Self-Signed Certificates:[/bold]")
+    try:
+        result = subprocess.run([
+            "sudo", "find", "/etc/ssl/certs", "-name", "*.crt", "-exec", "basename", "{}", ";"
+        ], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            certs = result.stdout.strip().split('\n') if result.stdout.strip() else []
+            
+            for cert in certs:
+                if cert.strip() and cert != "ca-certificates.crt":
+                    console.print(f"  • {cert}")
+    except Exception as e:
+        console.print(f"[red]Error listing self-signed certificates:[/red] {e}")
+
+
+def renew_ssl_cert(verbose: bool = False) -> None:
+    """Renew a Let's Encrypt certificate."""
+    from ..cli.menu import console
+    import subprocess
+    import os
+    
+    console.print("[bold blue]Renew SSL Certificate[/bold blue]")
+    console.print()
+    
+    # Get available Let's Encrypt certificates
+    if not os.path.exists("/etc/letsencrypt/live"):
+        console.print("[yellow]No Let's Encrypt certificates found.[/yellow]")
+        return
+    
+    try:
+        result = subprocess.run([
+            "sudo", "find", "/etc/letsencrypt/live", "-maxdepth", "1", "-type", "l", "-exec", "basename", "{}", ";"
+        ], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            domains = [d for d in result.stdout.strip().split('\n') if d.strip()]
+            
+            if not domains:
+                console.print("[yellow]No Let's Encrypt certificates found.[/yellow]")
+                return
+            
+            console.print("\n[bold]Available Domains for Certificate Renewal:[/bold]")
+            for i, domain in enumerate(domains, 1):
+                console.print(f"  [{i}] {domain}")
+            
+            while True:
+                try:
+                    choice = get_user_input(f"Select domain to renew certificate for (1-{len(domains)})", default="1")
+                    choice_num = int(choice)
+                    
+                    if 1 <= choice_num <= len(domains):
+                        domain = domains[choice_num - 1]
+                        break
+                    else:
+                        console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(domains)}.[/red]")
+                except ValueError:
+                    console.print("[red]Invalid input. Please enter a valid number.[/red]")
+            
+            if not confirm_action(f"Renew SSL certificate for {domain}?"):
+                console.print("[yellow]Certificate renewal cancelled.[/yellow]")
+                return
+            
+            try:
+                # Renew certificate
+                subprocess.run([
+                    "sudo", "certbot", "renew", "--cert-name", domain
+                ], check=True)
+                
+                # Reload nginx
+                if not reload_nginx():
+                    raise Exception("Failed to reload nginx configuration")
+                
+                console.print(f"[green]✓ SSL certificate for {domain} renewed successfully![/green]")
+                
+            except Exception as e:
+                console.print(f"[red]✗ Failed to renew certificate:[/red] {e}")
+                
+    except Exception as e:
+        console.print(f"[red]Error getting certificate list:[/red] {e}")
+
+
+def install_ssl_cert(verbose: bool = False) -> None:
+    """Install a new SSL certificate for a site."""
+    from ..cli.menu import console
+    import subprocess
+    import os
+    
+    console.print("[bold blue]Install SSL Certificate[/bold blue]")
+    console.print()
+    
+    # Get domain
+    domain = get_user_input("Enter domain name")
+    
+    # Check if site exists
+    if not os.path.exists(f"/etc/nginx/sites-available/{domain}"):
+        console.print(f"[red]Site '{domain}' not found.[/red]")
+        return
+    
+    # Get certificate type
+    console.print("\n[bold]Certificate Type:[/bold]")
+    console.print("  [1] Let's Encrypt - Obtain a free SSL certificate")
+    console.print("  [2] Custom - Use your own certificate files")
+    
+    while True:
+        try:
+            choice = get_user_input("Select certificate type (1-2)", default="1")
+            choice_num = int(choice)
+            
+            if choice_num == 1:
+                cert_type = "letsencrypt"
+                break
+            elif choice_num == 2:
+                cert_type = "custom"
+                break
+            else:
+                console.print("[red]Invalid selection. Please enter a number between 1 and 2.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
+    
+    if cert_type == "letsencrypt":
+        # Get email
+        email = get_user_input("Enter email address for Let's Encrypt certificate")
+        
+        if not confirm_action(f"Install Let's Encrypt certificate for {domain}?"):
+            console.print("[yellow]Certificate installation cancelled.[/yellow]")
+            return
+        
+        try:
+            # Set up webroot for Let's Encrypt challenge
+            webroot_challenge = "/var/www/html"
+            os.makedirs(webroot_challenge, exist_ok=True)
+            
+            # Obtain certificate
+            subprocess.run([
+                "sudo", "certbot", "certonly",
+                "--webroot", "-w", webroot_challenge,
+                "--non-interactive", "--agree-tos",
+                "--email", email,
+                "-d", domain
+            ], check=True)
+            
+            # Update Nginx configuration to use Let's Encrypt
+            _update_ssl_config(domain, "letsencrypt")
+            
+            # Reload nginx
+            if not reload_nginx():
+                raise Exception("Failed to reload nginx configuration")
+            
+            console.print(f"[green]✓ Let's Encrypt certificate for {domain} installed![/green]")
+            
+        except Exception as e:
+            console.print(f"[red]✗ Failed to install certificate:[/red] {e}")
+    
+    else:  # custom
+        # Get certificate paths
+        cert_path = get_user_input("Enter certificate file path")
+        key_path = get_user_input("Enter private key file path")
+        
+        if not confirm_action(f"Install custom certificate for {domain}?"):
+            console.print("[yellow]Certificate installation cancelled.[/yellow]")
+            return
+        
+        try:
+            # Copy certificates to standard locations
+            subprocess.run(["sudo", "cp", cert_path, f"/etc/ssl/certs/{domain}.crt"], check=True)
+            subprocess.run(["sudo", "cp", key_path, f"/etc/ssl/private/{domain}.key"], check=True)
+            
+            # Set permissions
+            subprocess.run(["sudo", "chmod", "644", f"/etc/ssl/certs/{domain}.crt"], check=True)
+            subprocess.run(["sudo", "chmod", "600", f"/etc/ssl/private/{domain}.key"], check=True)
+            
+            # Update Nginx configuration to use custom certificate
+            _update_ssl_config(domain, "custom")
+            
+            # Reload nginx
+            if not reload_nginx():
+                raise Exception("Failed to reload nginx configuration")
+            
+            console.print(f"[green]✓ Custom certificate for {domain} installed![/green]")
+            
+        except Exception as e:
+            console.print(f"[red]✗ Failed to install certificate:[/red] {e}")
+
+
+def _update_ssl_config(domain: str, cert_type: str) -> None:
+    """Update Nginx configuration to use SSL certificate."""
+    import subprocess
+    import os
+    
+    config_file = f"/etc/nginx/sites-available/{domain}"
+    
+    # Read current configuration
+    with open(config_file, 'r') as f:
+        config_content = f.read()
+    
+    # Update SSL certificate paths
+    if cert_type == "letsencrypt":
+        config_content = re.sub(
+            r'ssl_certificate\\s+[^;]+;',
+            f'ssl_certificate /etc/letsencrypt/live/{domain}/fullchain.pem;',
+            config_content
+        )
+        config_content = re.sub(
+            r'ssl_certificate_key\\s+[^;]+;',
+            f'ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;',
+            config_content
+        )
+    else:  # custom
+        config_content = re.sub(
+            r'ssl_certificate\\s+[^;]+;',
+            f'ssl_certificate /etc/ssl/certs/{domain}.crt;',
+            config_content
+        )
+        config_content = re.sub(
+            r'ssl_certificate_key\\s+[^;]+;',
+            f'ssl_certificate_key /etc/ssl/private/{domain}.key;',
+            config_content
+        )
+    
+    # Write updated configuration
+    with open(f"/tmp/{domain}.conf", 'w') as f:
+        f.write(config_content)
+    
+    # Replace original configuration
+    subprocess.run(["sudo", "mv", f"/tmp/{domain}.conf", config_file], check=True)
+    
+    # Test configuration
+    subprocess.run(["sudo", "nginx", "-t"], check=True)

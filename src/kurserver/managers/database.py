@@ -4,6 +4,7 @@ Database manager module for KurServer CLI.
 
 from ..core.logger import get_logger
 from ..cli.menu import get_user_input, confirm_action, show_progress
+from ..core.system import is_package_installed
 
 logger = get_logger()
 
@@ -21,7 +22,6 @@ def manage_database_menu(verbose: bool = False) -> None:
     console.print()
     
     # Check if database is installed
-    from ..core.system import is_package_installed
     mysql_installed = is_package_installed('mysql-server')
     mariadb_installed = is_package_installed('mariadb-server')
     
@@ -139,7 +139,6 @@ def create_user(verbose: bool = False) -> None:
     
     if grant_db:
         # Get available databases
-        from ..core.system import is_package_installed
         if is_package_installed('mysql-server'):
             db_type = "mysql"
         else:
@@ -186,7 +185,6 @@ def create_user(verbose: bool = False) -> None:
 def list_databases(verbose: bool = False) -> None:
     """List all databases."""
     from ..cli.menu import console
-    from ..core.system import is_package_installed
     
     console.print("[bold blue]Database List[/bold blue]")
     console.print()
@@ -213,7 +211,6 @@ def list_databases(verbose: bool = False) -> None:
 def list_users(verbose: bool = False) -> None:
     """List all database users."""
     from ..cli.menu import console
-    from ..core.system import is_package_installed
     
     console.print("[bold blue]Database Users[/bold blue]")
     console.print()
@@ -245,7 +242,6 @@ def drop_database(verbose: bool = False) -> None:
     console.print()
     
     # Get database name
-    from ..core.system import is_package_installed
     if is_package_installed('mysql-server'):
         db_type = "mysql"
     else:
@@ -287,7 +283,6 @@ def drop_user(verbose: bool = False) -> None:
     console.print()
     
     # Get user information
-    from ..core.system import is_package_installed
     if is_package_installed('mysql-server'):
         db_type = "mysql"
     else:
