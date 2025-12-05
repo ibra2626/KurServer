@@ -13,7 +13,7 @@ UPDATE_OPTIONS = [
     "pull - Pull latest changes from repository",
     "branch - Switch to different branch",
     "composer - Run composer install/update",
-    "npm - Run npm install/build",
+    "npm - Run npm operations with Node.js version selection",
     "env - Update environment file",
     "full - Full re-deployment from scratch"
 ]
@@ -78,6 +78,10 @@ def _execute_update(update_choice: str, deployment: dict, domain: str, verbose: 
                 _update_deployment_with_branch,
                 deployment, domain, new_branch, verbose
             )
+        elif update_choice == "npm":
+            # Enhanced npm operations with Node.js version selection
+            web_root = deployment.get('web_root', f"/var/www/{domain}")
+            _handle_npm_update(domain, web_root, verbose)
         else:
             # Specific update
             show_progress(
@@ -101,6 +105,25 @@ def _execute_update(update_choice: str, deployment: dict, domain: str, verbose: 
             console.print("[yellow]Hint: Ensure Git is installed and the repository is accessible.[/yellow]")
         else:
             console.print("[yellow]Hint: Check the logs for more detailed error information.[/yellow]")
+
+
+def _handle_npm_update(domain: str, web_root: str, verbose: bool = False) -> None:
+    """
+    Handle npm update operations with Node.js version selection.
+    
+    Args:
+        domain (str): Domain name for the site
+        web_root (str): Web root directory of the site
+        verbose (bool): Enable verbose output
+    """
+    from ..managers.npm import npm_site_menu
+    
+    try:
+        # Call the enhanced npm site menu
+        npm_site_menu(domain, web_root, verbose)
+    except Exception as e:
+        logger.error(f"NPM update failed for {domain}: {e}")
+        raise Exception(f"NPM update failed: {e}")
 
 
 def site_management_menu(verbose: bool = False) -> None:
@@ -129,7 +152,8 @@ def site_management_menu(verbose: bool = False) -> None:
         MenuOption("4", "Remove website", action=remove_site),
         MenuOption("5", "Enable/disable site", action=toggle_site),
         MenuOption("6", "Site information", action=site_info),
-        MenuOption("7", "Manage SSL certificates", action=manage_ssl),
+        MenuOption("7", "NPM operations", action=npm_operations_menu),
+        MenuOption("8", "Manage SSL certificates", action=manage_ssl),
     ]
     
     submenu = Menu("Site Management", options, show_status=False)
@@ -1704,6 +1728,49 @@ def update_existing_site(verbose: bool = False) -> None:
 
 
 # Backward compatibility alias
+def npm_operations_menu(verbose: bool = False) -> None:
+    """
+    Handle NPM operations for sites from the menu.
+    
+    Args:
+        verbose (bool): Enable verbose output
+    """
+    from ..cli.menu import console
+    
+    console.print("[bold blue]NPM Operations[/bold blue]")
+    console.print()
+    
+    # List available sites with numbers
+    sites = list_sites_with_numbers(verbose)
+    
+    if not sites:
+        console.print("[yellow]No sites available for NPM operations.[/yellow]")
+        return
+    
+    console.print()
+    
+    # Get site selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Enter site number for NPM operations (1-{len(sites)})")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(sites):
+                site = sites[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(sites)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
+    
+    # Get web root for the selected site
+    web_root = f"/var/www/{site}"
+    
+    # Call the npm site menu
+    from ..managers.npm import npm_site_menu
+    npm_site_menu(site, web_root, verbose)
+
+
 def update_deployment(verbose: bool = False) -> None:
     """
     Backward compatibility wrapper for update_existing_site.

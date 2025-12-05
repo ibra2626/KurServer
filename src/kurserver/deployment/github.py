@@ -354,12 +354,20 @@ def _deploy_from_github(repo_url: str, branch: str, domain: str, web_root: str,
     
     # Run npm if requested
     if run_npm and os.path.exists(os.path.join(web_root, "package.json")):
+        from ..managers.npm import _execute_npm_operation
+        from ..core.system import get_nvm_status
+        
+        # Get NVM status to determine Node.js version
+        nvm_status = get_nvm_status()
+        node_version = nvm_status.get('current_version') or 'system'
+        
         if verbose:
             logger.info("Running npm install...")
         
-        subprocess.run(["npm", "install"], cwd=web_root, check=True)
+        # Use enhanced npm manager for install
+        _execute_npm_operation(web_root, node_version, "install", verbose)
         
-        # Check if build script exists
+        # Check if build script exists and run it
         import json
         with open(os.path.join(web_root, "package.json"), 'r') as f:
             package_data = json.load(f)
@@ -368,7 +376,8 @@ def _deploy_from_github(repo_url: str, branch: str, domain: str, web_root: str,
             if verbose:
                 logger.info("Running npm build...")
             
-            subprocess.run(["npm", "run", "build"], cwd=web_root, check=True)
+            # Use enhanced npm manager for build
+            _execute_npm_operation(web_root, node_version, "build", verbose)
     
     # Create .env file if requested
     if create_env:
@@ -433,21 +442,13 @@ def _update_deployment(deployment: dict, domain: str, update_type: str, verbose:
             
     elif update_type == "npm":
         if os.path.exists(os.path.join(web_root, "package.json")):
+            from ..managers.npm import npm_site_menu
+            
             if verbose:
-                logger.info("Running npm install...")
+                logger.info("Starting npm operations...")
             
-            subprocess.run(["npm", "install"], cwd=web_root, check=True)
-            
-            # Check if build script exists
-            import json
-            with open(os.path.join(web_root, "package.json"), 'r') as f:
-                package_data = json.load(f)
-            
-            if "scripts" in package_data and "build" in package_data["scripts"]:
-                if verbose:
-                    logger.info("Running npm build...")
-                
-                subprocess.run(["npm", "run", "build"], cwd=web_root, check=True)
+            # Use enhanced npm site menu for comprehensive npm operations
+            npm_site_menu(domain, web_root, verbose)
         else:
             logger.warning("package.json not found")
             

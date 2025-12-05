@@ -15,6 +15,12 @@ Ubuntu sunucu yönetimi için kullanılan CLI aracı / Ubuntu server management 
   - Database and user management / Veritabanı ve kullanıcı yönetimi
   - Performance tuning based on system resources / Sistem kaynaklarına dayalı performans ayarı
 
+- **NVM and Node.js Management / NVM ve Node.js Yönetimi**
+  - Node.js version management with NVM / NVM ile Node.js versiyon yönetimi
+  - NPM operations with version selection / Versiyon seçimi ile NPM işlemleri
+  - Support for install, build, dev, and custom commands / Install, build, dev ve özel komut desteği
+  - Integration with site management / Site yönetimi ile entegrasyon
+
 - **PHP Management / PHP Yönetimi**
   - Multi-version PHP-FPM installation (7.4, 8.0, 8.1, 8.2) / Çoklu versiyon PHP-FPM kurulumu
   - Interactive extension management / Etkileşimli uzantı yönetimi
@@ -32,6 +38,7 @@ Ubuntu sunucu yönetimi için kullanılan CLI aracı / Ubuntu server management 
   - Manual deployment with project templates / Proje şablonları ile manuel dağıtım
   - Support for multiple frameworks (Laravel, Symfony, WordPress, Django, Flask, Node.js) / Çoklu çerçeve desteği
   - Automated dependency management (Composer, NPM) / Otomatik bağımlılık yönetimi
+  - Enhanced NPM operations with Node.js version selection / Node.js versiyon seçimi ile gelişmiş NPM işlemleri
 
 - **Configuration Management / Yapılandırma Yönetimi**
   - Configuration backup and restore / Yapılandırma yedekleme ve geri yükleme
