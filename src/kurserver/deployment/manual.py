@@ -276,7 +276,20 @@ def _create_directory_structure(web_root: str, verbose: bool = False) -> None:
         logger.info(f"Creating directory structure at {web_root}")
     
     # Create web root directory
-    os.makedirs(web_root, exist_ok=True)
+    # DEBUG: Add logging to validate permission issue diagnosis
+    logger.debug(f"[DEBUG] Manual deployment - Attempting to create directory: {web_root}")
+    logger.debug(f"[DEBUG] Manual deployment - Current user ID: {os.getuid()}")
+    logger.debug(f"[DEBUG] Manual deployment - Current effective user ID: {os.geteuid()}")
+    logger.debug(f"[DEBUG] Manual deployment - Directory parent exists: {os.path.exists(os.path.dirname(web_root))}")
+    logger.debug(f"[DEBUG] Manual deployment - Directory exists: {os.path.exists(web_root)}")
+    
+    try:
+        subprocess.run(["sudo", "mkdir", "-p", web_root], check=True)
+        logger.debug(f"[DEBUG] Manual deployment - Successfully created directory: {web_root}")
+    except PermissionError as e:
+        logger.error(f"[DEBUG] Manual deployment - Permission error creating directory {web_root}: {e}")
+        logger.error(f"[DEBUG] Manual deployment - This confirms the diagnosis - os.makedirs() lacks sudo privileges")
+        raise
     
     # Create common directories
     directories = [
@@ -337,7 +350,20 @@ def _create_project_structure(project_type: str, web_root: str, domain: str, ver
         logger.info(f"Creating {project_type} project structure at {web_root}")
     
     # Create web root directory
-    os.makedirs(web_root, exist_ok=True)
+    # DEBUG: Add logging to validate permission issue diagnosis
+    logger.debug(f"[DEBUG] Project structure - Attempting to create directory: {web_root}")
+    logger.debug(f"[DEBUG] Project structure - Current user ID: {os.getuid()}")
+    logger.debug(f"[DEBUG] Project structure - Current effective user ID: {os.geteuid()}")
+    logger.debug(f"[DEBUG] Project structure - Directory parent exists: {os.path.exists(os.path.dirname(web_root))}")
+    logger.debug(f"[DEBUG] Project structure - Directory exists: {os.path.exists(web_root)}")
+    
+    try:
+        subprocess.run(["sudo", "mkdir", "-p", web_root], check=True)
+        logger.debug(f"[DEBUG] Project structure - Successfully created directory: {web_root}")
+    except PermissionError as e:
+        logger.error(f"[DEBUG] Project structure - Permission error creating directory {web_root}: {e}")
+        logger.error(f"[DEBUG] Project structure - This confirms the diagnosis - os.makedirs() lacks sudo privileges")
+        raise
     
     if project_type == "php-basic":
         # Basic PHP structure

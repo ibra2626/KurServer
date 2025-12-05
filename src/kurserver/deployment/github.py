@@ -330,7 +330,20 @@ def _deploy_from_github(repo_url: str, branch: str, domain: str, web_root: str,
         logger.info(f"Cloning {repo_url} to {web_root}")
     
     # Create web root directory
-    os.makedirs(web_root, exist_ok=True)
+    # DEBUG: Add logging to validate permission issue diagnosis
+    logger.debug(f"[DEBUG] GitHub deployment - Attempting to create directory: {web_root}")
+    logger.debug(f"[DEBUG] GitHub deployment - Current user ID: {os.getuid()}")
+    logger.debug(f"[DEBUG] GitHub deployment - Current effective user ID: {os.geteuid()}")
+    logger.debug(f"[DEBUG] GitHub deployment - Directory parent exists: {os.path.exists(os.path.dirname(web_root))}")
+    logger.debug(f"[DEBUG] GitHub deployment - Directory exists: {os.path.exists(web_root)}")
+    
+    try:
+        subprocess.run(["sudo", "mkdir", "-p", web_root], check=True)
+        logger.debug(f"[DEBUG] GitHub deployment - Successfully created directory: {web_root}")
+    except PermissionError as e:
+        logger.error(f"[DEBUG] GitHub deployment - Permission error creating directory {web_root}: {e}")
+        logger.error(f"[DEBUG] GitHub deployment - This confirms the diagnosis - os.makedirs() lacks sudo privileges")
+        raise
     
     # Clone repository
     if github_token:

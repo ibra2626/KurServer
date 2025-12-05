@@ -482,11 +482,17 @@ def _create_site_config(domain: str, web_root: str, ssl_option: str,
     import subprocess
     import os
     
-    # Create web root directory
+    # Create web root directory with proper sudo elevation
     if verbose:
         logger.info(f"Creating web root directory: {web_root}")
     
-    os.makedirs(web_root, exist_ok=True)
+    # Use subprocess with sudo to ensure proper permissions for /var/www/ directory
+    try:
+        subprocess.run(["sudo", "mkdir", "-p", web_root], check=True)
+        logger.debug(f"[DEBUG] Successfully created directory with sudo: {web_root}")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"[DEBUG] Failed to create directory {web_root} with sudo: {e}")
+        raise Exception(f"Failed to create web root directory: {web_root}")
     
     # Set permissions
     subprocess.run(["sudo", "chown", "-R", "www-data:www-data", web_root], check=True)
