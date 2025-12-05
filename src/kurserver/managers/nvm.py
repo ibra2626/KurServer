@@ -112,8 +112,12 @@ def list_installed_versions(verbose: bool = False) -> None:
             debug_log(logger, "nvm", f"Displayed version: v{version}{current}")
         
         if nvm_status['current_version']:
-            console.print(f"\n[cyan]Currently using: v{nvm_status['current_version']}[/cyan]")
-            debug_log(logger, "nvm", f"Current version displayed: v{nvm_status['current_version']}")
+            # Remove duplicate 'v' prefix if present
+            current_version = nvm_status['current_version']
+            if current_version.startswith('vv'):
+                current_version = current_version[1:]  # Remove one 'v'
+            console.print(f"\n[cyan]Currently using: {current_version}[/cyan]")
+            debug_log(logger, "nvm", f"Current version displayed: {current_version}")
         
         debug_log(logger, "nvm", "list_installed_versions function completed successfully")
         
@@ -700,6 +704,7 @@ def _switch_node_version(version: str, verbose: bool = False) -> None:
     export NVM_DIR="$HOME/.nvm"
     [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
     nvm use {version}
+    nvm alias default {version}
     """
     
     result = subprocess.run([

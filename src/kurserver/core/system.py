@@ -855,6 +855,10 @@ def get_nvm_status():
         echo "===NODE_VERSION==="
         node --version 2>/dev/null || echo "Not installed"
         
+        # Get default version as fallback for current version detection
+        echo "===DEFAULT_VERSION_AS_CURRENT==="
+        nvm alias default 2>/dev/null | grep -o 'v[0-9]*\.[0-9]*\.[0-9]*' | head -1 || echo "No default set"
+        
         # Get installed Node.js versions
         echo "===NVM_LIST==="
         nvm list 2>/dev/null || echo "No versions installed"
@@ -897,6 +901,7 @@ def get_nvm_status():
             '===DEBUG_NVM_CMD===',
             '===NVM_VERSION===',
             '===NODE_VERSION===',
+            '===DEFAULT_VERSION_AS_CURRENT===',
             '===NVM_LIST===',
             '===NVM_DEFAULT==='
         ]
@@ -931,6 +936,12 @@ def get_nvm_status():
             elif marker == '===NODE_VERSION===':
                 node_version = section_content if section_content != "Not installed" else None
                 debug_log(logger, "system", f"Node Version: {node_version}")
+            elif marker == '===DEFAULT_VERSION_AS_CURRENT===':
+                # Use this as fallback for current_version if node_version is None or "Not installed"
+                if not node_version or node_version == "Not installed":
+                    if section_content != "No default set" and section_content.strip():
+                        node_version = section_content.strip()
+                        debug_log(logger, "system", f"Using default version as current: {node_version}")
             elif marker == '===NVM_LIST===':
                 debug_log(logger, "system", f"NVM List Raw Output: {repr(section_content)}")
                 if "No versions installed" not in section_content:
