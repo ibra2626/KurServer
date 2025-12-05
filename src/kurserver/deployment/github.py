@@ -153,19 +153,35 @@ def update_deployment(verbose: bool = False) -> None:
     # Ask what to update
     console.print("\n[bold]Update Options:[/bold]")
     update_options = [
-        "pull - Pull latest changes from repository",
-        "branch - Switch to different branch",
-        "composer - Run composer install/update",
-        "npm - Run npm install/build",
-        "env - Update environment file",
-        "full - Full re-deployment from scratch"
+        "1 - Pull latest changes from repository",
+        "2 - Switch to different branch",
+        "3 - Run composer install/update",
+        "4 - Run npm install/build",
+        "5 - Update environment file",
+        "6 - Full re-deployment from scratch"
     ]
     
-    update_choice = get_user_input(
-        "Select update option",
-        choices=[opt.split(' - ')[0] for opt in update_options],
-        default="pull"
-    )
+    # Display options
+    for option in update_options:
+        console.print(f"[cyan]{option}[/cyan]")
+    
+    # Get numerical choice
+    choice_map = {
+        "1": "pull",
+        "2": "branch",
+        "3": "composer",
+        "4": "npm",
+        "5": "env",
+        "6": "full"
+    }
+    
+    while True:
+        choice_input = get_user_input("Select update option (1-6)", default="1")
+        if choice_input in choice_map:
+            update_choice = choice_map[choice_input]
+            break
+        else:
+            console.print("[red]Invalid choice. Please enter a number between 1 and 6.[/red]")
     
     
     try:
@@ -180,7 +196,6 @@ def update_deployment(verbose: bool = False) -> None:
             # Get branch name before showing progress
             new_branch = get_user_input("Enter new branch name")
             
-            console.print(new_branch)
             # Update with progress
             show_progress(
                 f"Updating branch to {new_branch}...",

@@ -8,6 +8,100 @@ from ..core.system import get_available_php_versions, reload_nginx
 
 logger = get_logger()
 
+# Update options constant for better maintainability
+UPDATE_OPTIONS = [
+    "pull - Pull latest changes from repository",
+    "branch - Switch to different branch",
+    "composer - Run composer install/update",
+    "npm - Run npm install/build",
+    "env - Update environment file",
+    "full - Full re-deployment from scratch"
+]
+
+
+def _get_update_choice() -> str:
+    """
+    Get user's update choice with structured selection.
+    
+    Returns:
+        str: Selected update option
+    """
+    from ..cli.menu import console
+    
+    console.print("\n[bold]Update Options:[/bold]")
+    for i, option in enumerate(UPDATE_OPTIONS, 1):
+        console.print(f"  [{i}] {option}")
+    
+    while True:
+        try:
+            choice = get_user_input(f"Select update option [1-{len(UPDATE_OPTIONS)}]", default="1")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(UPDATE_OPTIONS):
+                # Extract the option key (e.g., "pull" from "pull - Pull latest changes from repository")
+                selected_option = UPDATE_OPTIONS[choice_num - 1].split(' - ')[0]
+                return selected_option
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(UPDATE_OPTIONS)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
+
+
+def _execute_update(update_choice: str, deployment: dict, domain: str, verbose: bool = False) -> None:
+    """
+    Execute the selected update operation with proper error handling.
+    
+    Args:
+        update_choice (str): Type of update to perform
+        deployment (dict): Deployment information
+        domain (str): Domain name for the site
+        verbose (bool): Enable verbose output
+    """
+    from ..deployment.github import _update_deployment, _update_deployment_with_branch, _full_redeploy
+    from ..cli.menu import console
+    
+    try:
+        if update_choice == "full":
+            # Full re-deployment
+            show_progress(
+                "Re-deploying from GitHub...",
+                _full_redeploy,
+                deployment, domain, verbose
+            )
+        elif update_choice == "branch":
+            # Branch update - get branch name first
+            new_branch = get_user_input("Enter new branch name")
+            
+            # Update with progress
+            show_progress(
+                f"Updating branch to {new_branch}...",
+                _update_deployment_with_branch,
+                deployment, domain, new_branch, verbose
+            )
+        else:
+            # Specific update
+            show_progress(
+                f"Updating {update_choice}...",
+                _update_deployment,
+                deployment, domain, update_choice, verbose
+            )
+        
+        console.print(f"[bold green]✓ Update completed successfully![/bold green]")
+        
+    except Exception as e:
+        console.print(f"[bold red]✗ Update failed:[/bold red] {e}")
+        logger.error(f"Deployment update failed for {domain}: {e}")
+        
+        # Provide specific error recovery suggestions
+        if "Permission denied" in str(e):
+            console.print("[yellow]Hint: Check file permissions and try running with sudo if needed.[/yellow]")
+        elif "Network" in str(e) or "connection" in str(e).lower():
+            console.print("[yellow]Hint: Check your internet connection and GitHub repository accessibility.[/yellow]")
+        elif "Git" in str(e):
+            console.print("[yellow]Hint: Ensure Git is installed and the repository is accessible.[/yellow]")
+        else:
+            console.print("[yellow]Hint: Check the logs for more detailed error information.[/yellow]")
+
 
 def site_management_menu(verbose: bool = False) -> None:
     """
@@ -1354,68 +1448,11 @@ def update_existing_site(verbose: bool = False) -> None:
         
         console.print(f"[green]✓ GitHub deployment information saved for '{site}'[/green]")
     
-    # Show update options
-    console.print("\n[bold]Site Update Options:[/bold]")
-    console.print("  [1] pull - Pull latest changes from repository")
-    console.print("  [2] branch - Switch to different branch")
-    console.print("  [3] composer - Run composer install/update")
-    console.print("  [4] npm - Run npm install/build")
-    console.print("  [5] env - Update environment file")
-    console.print("  [6] full - Full re-deployment from scratch")
+    # Get update choice using structured selection
+    update_choice = _get_update_choice()
     
-    while True:
-        try:
-            choice = get_user_input("Select update option (1-6)", default="1")
-            choice_num = int(choice)
-            
-            if 1 <= choice_num <= 6:
-                update_choice_map = {
-                    1: "pull",
-                    2: "branch",
-                    3: "composer",
-                    4: "npm",
-                    5: "env",
-                    6: "full"
-                }
-                update_choice = update_choice_map[choice_num]
-                break
-            else:
-                console.print("[red]Invalid selection. Please enter a number between 1 and 6.[/red]")
-        except ValueError:
-            console.print("[red]Invalid input. Please enter a valid number.[/red]")
-    
-    try:
-        if update_choice == "full":
-            # Full re-deployment
-            show_progress(
-                "Re-deploying from GitHub...",
-                _full_redeploy,
-                deployment, verbose
-            )
-        elif update_choice == "branch":
-            # Branch update - get branch name first
-            from ..deployment.github import _update_deployment_with_branch
-            new_branch = get_user_input("Enter new branch name")
-            
-            # Update with progress
-            show_progress(
-                f"Updating branch to {new_branch}...",
-                _update_deployment_with_branch,
-                deployment, new_branch, verbose
-            )
-        else:
-            # Specific update
-            show_progress(
-                f"Updating {update_choice}...",
-                _update_deployment,
-                deployment, update_choice, verbose
-            )
-        
-        console.print(f"[bold green]✓ Update completed successfully![/bold green]")
-        
-    except Exception as e:
-        console.print(f"[bold red]✗ Update failed:[/bold red] {e}")
-        logger.error(f"Deployment update failed for {site}: {e}")
+    # Execute update with professional error handling
+    _execute_update(update_choice, deployment, site, verbose)
 
 
 # Backward compatibility alias
