@@ -47,15 +47,28 @@ def view_config(verbose: bool = False) -> None:
     console.print("[bold blue]View Configuration[/bold blue]")
     console.print()
     
-    # Get configuration type
-    config_type = get_user_input(
-        "Select configuration to view",
-        choices=[
-            "nginx", "php", "mysql", "mariadb", 
-            "php-fpm", "ssl", "system", "kurserver"
-        ],
-        default="nginx"
-    )
+    # Display configuration types with numbers
+    console.print("[bold]Available Configuration Types:[/bold]")
+    config_types = [
+        "nginx", "php", "mysql", "mariadb",
+        "php-fpm", "ssl", "system", "kurserver"
+    ]
+    for i, config_type in enumerate(config_types, 1):
+        console.print(f"  [{i}] {config_type.title()}")
+    
+    # Get configuration type selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Select configuration to view (1-{len(config_types)})", default="1")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(config_types):
+                config_type = config_types[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(config_types)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     try:
         if config_type == "nginx":
@@ -92,15 +105,28 @@ def edit_config(verbose: bool = False) -> None:
     console.print("[bold blue]Edit Configuration[/bold blue]")
     console.print()
     
-    # Get configuration type
-    config_type = get_user_input(
-        "Select configuration to edit",
-        choices=[
-            "nginx", "php", "mysql", "mariadb", 
-            "php-fpm", "ssl", "system", "kurserver"
-        ],
-        default="nginx"
-    )
+    # Display configuration types with numbers
+    console.print("[bold]Available Configuration Types:[/bold]")
+    config_types = [
+        "nginx", "php", "mysql", "mariadb",
+        "php-fpm", "ssl", "system", "kurserver"
+    ]
+    for i, config_type in enumerate(config_types, 1):
+        console.print(f"  [{i}] {config_type.title()}")
+    
+    # Get configuration type selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Select configuration to edit (1-{len(config_types)})", default="1")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(config_types):
+                config_type = config_types[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(config_types)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     try:
         if config_type == "nginx":
@@ -137,12 +163,25 @@ def backup_config(verbose: bool = False) -> None:
     console.print("[bold blue]Backup Configuration[/bold blue]")
     console.print()
     
-    # Get backup options
-    backup_type = get_user_input(
-        "Select backup type",
-        choices=["full", "selective"],
-        default="full"
-    )
+    # Display backup types with numbers
+    console.print("[bold]Available Backup Types:[/bold]")
+    backup_types = ["full", "selective"]
+    for i, backup_type in enumerate(backup_types, 1):
+        console.print(f"  [{i}] {backup_type.title()}")
+    
+    # Get backup type selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Select backup type (1-{len(backup_types)})", default="1")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(backup_types):
+                backup_type = backup_types[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(backup_types)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     if backup_type == "selective":
         # Get configurations to backup
@@ -201,18 +240,44 @@ def restore_config(verbose: bool = False) -> None:
         console.print("[yellow]No configuration backups found.[/yellow]")
         return
     
-    # Select backup to restore
-    backup_name = get_user_input(
-        "Select backup to restore",
-        choices=backups
-    )
+    # Display backups with numbers
+    console.print("[bold]Available Backups:[/bold]")
+    for i, backup in enumerate(backups, 1):
+        console.print(f"  [{i}] {backup}")
     
-    # Get restore options
-    restore_type = get_user_input(
-        "Select restore type",
-        choices=["full", "selective"],
-        default="full"
-    )
+    # Get backup selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Select backup to restore (1-{len(backups)})")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(backups):
+                backup_name = backups[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(backups)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
+    
+    # Display restore types with numbers
+    console.print("[bold]Available Restore Types:[/bold]")
+    restore_types = ["full", "selective"]
+    for i, restore_type in enumerate(restore_types, 1):
+        console.print(f"  [{i}] {restore_type.title()}")
+    
+    # Get restore type selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Select restore type (1-{len(restore_types)})", default="1")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(restore_types):
+                restore_type = restore_types[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(restore_types)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     if restore_type == "selective":
         # Get configurations to restore
@@ -308,15 +373,28 @@ def reset_config(verbose: bool = False) -> None:
     console.print("[bold blue]Reset Configuration[/bold blue]")
     console.print()
     
-    # Get configuration to reset
-    config_type = get_user_input(
-        "Select configuration to reset",
-        choices=[
-            "nginx", "php", "mysql", "mariadb", 
-            "php-fpm", "ssl", "system", "kurserver"
-        ],
-        default="nginx"
-    )
+    # Display configuration types with numbers
+    console.print("[bold]Available Configuration Types:[/bold]")
+    config_types = [
+        "nginx", "php", "mysql", "mariadb",
+        "php-fpm", "ssl", "system", "kurserver"
+    ]
+    for i, config_type in enumerate(config_types, 1):
+        console.print(f"  [{i}] {config_type.title()}")
+    
+    # Get configuration type selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Select configuration to reset (1-{len(config_types)})", default="1")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(config_types):
+                config_type = config_types[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(config_types)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     # Confirm reset
     if not confirm_action(f"Are you sure you want to reset {config_type} configuration to defaults?"):
@@ -357,11 +435,24 @@ def _view_nginx_config() -> None:
         console.print("[yellow]No Nginx sites found.[/yellow]")
         return
     
-    # Select site to view
-    site = get_user_input(
-        "Select site to view",
-        choices=sites
-    )
+    # Display sites with numbers
+    console.print("[bold]Available Nginx Sites:[/bold]")
+    for i, site in enumerate(sites, 1):
+        console.print(f"  [{i}] {site}")
+    
+    # Get site selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Select site to view (1-{len(sites)})")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(sites):
+                site = sites[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(sites)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     config_file = f"/etc/nginx/sites-available/{site}"
     
@@ -391,11 +482,24 @@ def _view_php_config() -> None:
         console.print("[yellow]No PHP installations found.[/yellow]")
         return
     
-    # Select PHP version
-    version = get_user_input(
-        "Select PHP version",
-        choices=php_versions
-    )
+    # Display PHP versions with numbers
+    console.print("[bold]Available PHP Versions:[/bold]")
+    for i, version in enumerate(php_versions, 1):
+        console.print(f"  [{i}] PHP {version}")
+    
+    # Get PHP version selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Select PHP version (1-{len(php_versions)})")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(php_versions):
+                version = php_versions[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(php_versions)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     config_file = f"/etc/php/{version}/apache2/php.ini"
     
@@ -454,11 +558,24 @@ def _view_php_fpm_config() -> None:
         console.print("[yellow]No PHP-FPM installations found.[/yellow]")
         return
     
-    # Select PHP version
-    version = get_user_input(
-        "Select PHP-FPM version",
-        choices=php_versions
-    )
+    # Display PHP versions with numbers
+    console.print("[bold]Available PHP-FPM Versions:[/bold]")
+    for i, version in enumerate(php_versions, 1):
+        console.print(f"  [{i}] PHP-FPM {version}")
+    
+    # Get PHP version selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Select PHP-FPM version (1-{len(php_versions)})")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(php_versions):
+                version = php_versions[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(php_versions)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     config_file = f"/etc/php/{version}/fpm/pool.d/www.conf"
     
@@ -494,11 +611,24 @@ def _view_ssl_config() -> None:
         console.print("[yellow]No SSL certificates found.[/yellow]")
         return
     
-    # Select certificate to view
-    cert_name = get_user_input(
-        "Select certificate to view",
-        choices=certs
-    )
+    # Display certificates with numbers
+    console.print("[bold]Available SSL Certificates:[/bold]")
+    for i, cert in enumerate(certs, 1):
+        console.print(f"  [{i}] {cert}")
+    
+    # Get certificate selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Select certificate to view (1-{len(certs)})")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(certs):
+                cert_name = certs[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(certs)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     try:
         if cert_name in os.listdir("/etc/letsencrypt/live"):
@@ -593,11 +723,24 @@ def _edit_nginx_config() -> None:
         console.print("[yellow]No Nginx sites found.[/yellow]")
         return
     
-    # Select site to edit
-    site = get_user_input(
-        "Select site to edit",
-        choices=sites
-    )
+    # Display sites with numbers
+    console.print("[bold]Available Nginx Sites:[/bold]")
+    for i, site in enumerate(sites, 1):
+        console.print(f"  [{i}] {site}")
+    
+    # Get site selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Select site to edit (1-{len(sites)})")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(sites):
+                site = sites[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(sites)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     config_file = f"/etc/nginx/sites-available/{site}"
     

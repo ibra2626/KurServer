@@ -141,12 +141,26 @@ def update_deployment(verbose: bool = False) -> None:
         console.print("[yellow]No existing deployments found.[/yellow]")
         return
     
-    # Select deployment to update
+    # Display deployments with numbers
     domain_choices = list(deployments.keys())
-    domain = get_user_input(
-        "Select deployment to update",
-        choices=domain_choices
-    )
+    console.print("[bold]Available Deployments:[/bold]")
+    for i, domain in enumerate(domain_choices, 1):
+        deployment = deployments[domain]
+        console.print(f"  [{i}] {domain} - {deployment['repo_url']} ({deployment['branch']})")
+    
+    # Get deployment selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Select deployment to update (1-{len(domain_choices)})")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(domain_choices):
+                domain = domain_choices[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(domain_choices)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     deployment = deployments[domain]
     

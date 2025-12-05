@@ -166,10 +166,24 @@ def uninstall_php_menu(verbose: bool = False) -> None:
     if len(php_versions) == 1:
         selected_version = php_versions[0]
     else:
-        selected_version = get_user_input(
-            "Select PHP version to uninstall:",
-            choices=php_versions
-        )
+        # Display PHP versions with numbers
+        console.print("[bold]Available PHP Versions:[/bold]")
+        for i, version in enumerate(php_versions, 1):
+            console.print(f"  [{i}] PHP {version}")
+        
+        # Get PHP version selection by number
+        while True:
+            try:
+                choice = get_user_input(f"Select PHP version to uninstall (1-{len(php_versions)})")
+                choice_num = int(choice)
+                
+                if 1 <= choice_num <= len(php_versions):
+                    selected_version = php_versions[choice_num - 1]
+                    break
+                else:
+                    console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(php_versions)}.[/red]")
+            except ValueError:
+                console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     # Show what will be removed
     console.print(f"[bold]The following will be removed:[/bold]")
@@ -341,11 +355,25 @@ def rollback_menu(verbose: bool = False) -> None:
     console.print("[bold blue]Rollback from Backup[/bold blue]")
     console.print()
     
-    # Select component
-    component = get_user_input(
-        "Select component to rollback:",
-        choices=["nginx", "mysql", "php"]
-    )
+    # Display components with numbers
+    console.print("[bold]Available Components:[/bold]")
+    components = ["nginx", "mysql", "php"]
+    for i, component in enumerate(components, 1):
+        console.print(f"  [{i}] {component.title()}")
+    
+    # Get component selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Select component to rollback (1-{len(components)})")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(components):
+                component = components[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(components)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     backup_manager = BackupManager(component)
     backups = backup_manager.list_backups(verbose)

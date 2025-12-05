@@ -113,12 +113,26 @@ def remove_deployment_config(verbose: bool = False) -> None:
         console.print("[yellow]No deployments found.[/yellow]")
         return
     
-    # Select deployment to remove
+    # Display deployments with numbers
     domain_choices = list(deployments.keys())
-    domain = get_user_input(
-        "Select deployment to remove",
-        choices=domain_choices
-    )
+    console.print("[bold]Available Deployments:[/bold]")
+    for i, domain in enumerate(domain_choices, 1):
+        deployment = deployments[domain]
+        console.print(f"  [{i}] {domain} - {deployment['repo_url']} ({deployment['branch']})")
+    
+    # Get deployment selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Select deployment to remove (1-{len(domain_choices)})")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(domain_choices):
+                domain = domain_choices[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(domain_choices)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     deployment = deployments[domain]
     
@@ -127,6 +141,8 @@ def remove_deployment_config(verbose: bool = False) -> None:
     console.print(f"Domain: {domain}")
     console.print(f"Repository: {deployment['repo_url']}")
     console.print(f"Branch: {deployment['branch']}")
+    console.print(f"Web Root: {deployment['web_root']}")
+    console.print(f"Private: {'Yes' if deployment['private'] else 'No'}")
     
     if not confirm_action(f"\nRemove deployment configuration for '{domain}'?"):
         console.print("[yellow]Operation cancelled.[/yellow]")

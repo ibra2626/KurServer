@@ -102,15 +102,28 @@ def create_project_structure(verbose: bool = False) -> None:
     console.print("[bold blue]Create Project Structure[/bold blue]")
     console.print()
     
-    # Get project type
-    project_type = get_user_input(
-        "Select project type",
-        choices=[
-            "php-basic", "wordpress", "laravel", "symfony", 
-            "static", "nodejs", "django", "flask", "custom"
-        ],
-        default="php-basic"
-    )
+    # Display project types with numbers
+    console.print("[bold]Available Project Types:[/bold]")
+    project_types = [
+        "php-basic", "wordpress", "laravel", "symfony",
+        "static", "nodejs", "django", "flask", "custom"
+    ]
+    for i, project_type in enumerate(project_types, 1):
+        console.print(f"  [{i}] {project_type.title().replace('-', ' ')}")
+    
+    # Get project type selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Select project type (1-{len(project_types)})", default="1")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(project_types):
+                project_type = project_types[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(project_types)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     # Get domain
     domain = get_user_input("Enter domain name")
@@ -166,15 +179,28 @@ def setup_application(verbose: bool = False) -> None:
         console.print(f"[red]Directory {web_root} does not exist.[/red]")
         return
     
-    # Get application type
-    app_type = get_user_input(
-        "Select application type",
-        choices=[
-            "wordpress", "laravel", "symfony", "django", 
-            "flask", "nodejs", "php-generic", "custom"
-        ],
-        default="php-generic"
-    )
+    # Display application types with numbers
+    console.print("[bold]Available Application Types:[/bold]")
+    app_types = [
+        "wordpress", "laravel", "symfony", "django",
+        "flask", "nodejs", "php-generic", "custom"
+    ]
+    for i, app_type in enumerate(app_types, 1):
+        console.print(f"  [{i}] {app_type.title()}")
+    
+    # Get application type selection by number
+    while True:
+        try:
+            choice = get_user_input(f"Select application type (1-{len(app_types)})", default="1")
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(app_types):
+                app_type = app_types[choice_num - 1]
+                break
+            else:
+                console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(app_types)}.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     try:
         # Set up application
