@@ -700,12 +700,12 @@ def _install_extensions_interactive(version: str, verbose: bool = False) -> None
         
         # Debug logging
         if verbose:
-            logger.debug(f"User input: {selected_indices}")
-            logger.debug(f"Available options: {selection_options}")
+            debug_log(logger, "php", f"User input: {selected_indices}")
+            debug_log(logger, "php", f"Available options: {selection_options}")
         
         # Additional debug logging to diagnose the issue
-        logger.debug(f"[DEBUG] User input received: '{selected_indices}'")
-        logger.debug(f"[DEBUG] First option in selection_options: '{selection_options[0] if selection_options else 'None'}'")
+        debug_log(logger, "php", f"[DEBUG] User input received: '{selected_indices}'")
+        debug_log(logger, "php", f"[DEBUG] First option in selection_options: '{selection_options[0] if selection_options else 'None'}'")
         
         # Determine which extensions to install
         extensions_to_install = []

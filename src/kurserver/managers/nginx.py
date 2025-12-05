@@ -254,11 +254,40 @@ def add_new_site(verbose: bool = False) -> None:
     enable_ssl = ssl_option != "none"
     use_letsencrypt = ssl_option == "letsencrypt"
     
-    # Ask about PHP
-    enable_php = confirm_action("Enable PHP processing?")
+    # Ask about application type
+    console.print("\n[bold]Application Type:[/bold]")
+    console.print("  [1] Static HTML/CSS/JS")
+    console.print("  [2] PHP Application")
+    console.print("  [3] Node.js Application")
+    
+    app_type = "static"
+    enable_php = False
+    enable_nodejs = False
+    php_version = None
+    nodejs_version = None
+    
+    while True:
+        try:
+            choice = get_user_input("Select application type (1-3)", default="1")
+            choice_num = int(choice)
+            
+            if choice_num == 1:
+                app_type = "static"
+                break
+            elif choice_num == 2:
+                app_type = "php"
+                enable_php = True
+                break
+            elif choice_num == 3:
+                app_type = "nodejs"
+                enable_nodejs = True
+                break
+            else:
+                console.print("[red]Invalid selection. Please enter a number between 1 and 3.[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
     # Get PHP version if PHP is enabled
-    php_version = None
     if enable_php:
         # Get installed PHP versions dynamically
         installed_php_versions = get_available_php_versions()
@@ -284,6 +313,45 @@ def add_new_site(verbose: bool = False) -> None:
             except ValueError:
                 console.print("[red]Invalid input. Please enter a valid number.[/red]")
     
+    # Get Node.js version if Node.js is enabled
+    if enable_nodejs:
+        from ..core.system import get_node_status, get_nvm_status
+        
+        # Check if NVM is installed
+        nvm_status = get_nvm_status()
+        if not nvm_status['installed']:
+            console.print("[red]NVM is not installed. Please install NVM first.[/red]")
+            console.print("[yellow]You can install NVM from the main menu > Install Software > NVM.[/yellow]")
+            return
+        
+        # Get installed Node.js versions
+        node_status = get_node_status()
+        installed_versions = node_status.get('installed_versions', [])
+        
+        if not installed_versions:
+            console.print("[red]No Node.js versions installed. Please install a Node.js version first.[/red]")
+            console.print("[yellow]You can install Node.js from the main menu > NVM Management > Install Node.js version.[/yellow]")
+            return
+        
+        console.print("\n[bold]Available Node.js Versions:[/bold]")
+        for i, version in enumerate(installed_versions, 1):
+            is_default = " (default)" if version == node_status.get('default_version') else ""
+            is_current = " (current)" if version == node_status.get('current_version') else ""
+            console.print(f"  [{i}] Node.js {version}{is_default}{is_current}")
+        
+        while True:
+            try:
+                choice = get_user_input(f"Select Node.js version (1-{len(installed_versions)})", default="1")
+                choice_num = int(choice)
+                
+                if 1 <= choice_num <= len(installed_versions):
+                    nodejs_version = installed_versions[choice_num - 1]
+                    break
+                else:
+                    console.print(f"[red]Invalid selection. Please enter a number between 1 and {len(installed_versions)}.[/red]")
+            except ValueError:
+                console.print("[red]Invalid input. Please enter a valid number.[/red]")
+    
     # Get email for Let's Encrypt if needed
     email = None
     if use_letsencrypt:
@@ -306,7 +374,14 @@ def add_new_site(verbose: bool = False) -> None:
         console.print(f"Private: {'Yes' if is_private else 'No'}")
     
     console.print(f"SSL: {ssl_option}")
-    console.print(f"PHP: {'Enabled (' + php_version + ')' if enable_php else 'Disabled'}")
+    
+    # Display application type information
+    if app_type == "static":
+        console.print("Application Type: Static HTML/CSS/JS")
+    elif app_type == "php":
+        console.print(f"Application Type: PHP ({php_version})")
+    elif app_type == "nodejs":
+        console.print(f"Application Type: Node.js ({nodejs_version})")
     
     if use_letsencrypt:
         console.print(f"Email for certificate: {email}")
@@ -320,7 +395,7 @@ def add_new_site(verbose: bool = False) -> None:
         show_progress(
             "Creating website configuration...",
             _create_site_config,
-            domain, web_root, ssl_option, enable_php, php_version, verbose
+            domain, web_root, ssl_option, app_type, php_version, nodejs_version, verbose
         )
         
         # Set up SSL if requested
@@ -339,7 +414,7 @@ def add_new_site(verbose: bool = False) -> None:
                 domain, deployment_method, github_url if deployment_method == "github" else None,
                 github_branch if deployment_method == "github" else None,
                 github_token if deployment_method == "github" and is_private else None,
-                verbose
+                app_type, nodejs_version, verbose
             )
             
             # Save deployment info for GitHub deployments
@@ -366,7 +441,8 @@ def add_new_site(verbose: bool = False) -> None:
 
 
 def _create_site_config(domain: str, web_root: str, ssl_option: str,
-                       enable_php: bool, php_version: str, verbose: bool = False) -> None:
+                       app_type: str, php_version: str = None, nodejs_version: str = None,
+                       verbose: bool = False) -> None:
     """
     Create Nginx site configuration.
     
@@ -374,8 +450,9 @@ def _create_site_config(domain: str, web_root: str, ssl_option: str,
         domain (str): Domain name
         web_root (str): Web root directory
         ssl_option (str): SSL option ('none', 'self-signed', 'letsencrypt')
-        enable_php (bool): Enable PHP
-        php_version (str): PHP version
+        app_type (str): Application type ('static', 'php', 'nodejs')
+        php_version (str): PHP version (if PHP is enabled)
+        nodejs_version (str): Node.js version (if Node.js is enabled)
         verbose (bool): Enable verbose output
     """
     import subprocess
@@ -395,7 +472,7 @@ def _create_site_config(domain: str, web_root: str, ssl_option: str,
     config_path = f"/etc/nginx/sites-available/{domain}"
     
     # Generate configuration content
-    config_content = _generate_nginx_config(domain, web_root, ssl_option, enable_php, php_version)
+    config_content = _generate_nginx_config(domain, web_root, ssl_option, app_type, php_version, nodejs_version)
     
     # Write configuration file
     with open(f"/tmp/{domain}.conf", 'w') as f:
@@ -418,7 +495,7 @@ def _create_site_config(domain: str, web_root: str, ssl_option: str,
 
 
 def _generate_nginx_config(domain: str, web_root: str, ssl_option: str,
-                          enable_php: bool, php_version: str) -> str:
+                          app_type: str, php_version: str = None, nodejs_version: str = None) -> str:
     """
     Generate Nginx configuration content.
     
@@ -426,34 +503,69 @@ def _generate_nginx_config(domain: str, web_root: str, ssl_option: str,
         domain (str): Domain name
         web_root (str): Web root directory
         ssl_option (str): SSL option ('none', 'self-signed', 'letsencrypt')
-        enable_php (bool): Enable PHP
-        php_version (str): PHP version
+        app_type (str): Application type ('static', 'php', 'nodejs')
+        php_version (str): PHP version (if PHP is enabled)
+        nodejs_version (str): Node.js version (if Node.js is enabled)
     
     Returns:
         str: Nginx configuration content
     """
     enable_ssl = ssl_option != "none"
     
+    # Set index file based on application type
+    if app_type == "nodejs":
+        index_files = "index.js index.html"
+    else:
+        index_files = "index.html index.php"
+    
     config = f"""server {{
     listen 80;
     server_name {domain};
     root {web_root};
-    index index.html index.php;
+    index {index_files};
     
     access_log /var/log/nginx/{domain}.access.log;
     error_log /var/log/nginx/{domain}.error.log;
     
-    location / {{
-        try_files $uri $uri/ =404;
-    }}
 """
     
-    if enable_php:
+    # Add location blocks based on application type
+    if app_type == "static":
+        config += """    location / {
+        try_files $uri $uri/ =404;
+    }
+"""
+    elif app_type == "php":
+        config += """    location / {
+        try_files $uri $uri/ =404;
+    }
+"""
         config += f"""
     location ~ \.php$ {{
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:/var/run/php/php{php_version}-fpm.sock;
     }}
+"""
+    elif app_type == "nodejs":
+        config += """    # For Node.js applications, proxy to Node.js server
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+    
+    # Serve static files directly
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
 """
     
     # Add redirect to HTTPS if SSL is enabled
@@ -471,7 +583,7 @@ def _generate_nginx_config(domain: str, web_root: str, ssl_option: str,
     listen 443 ssl http2;
     server_name {domain};
     root {web_root};
-    index index.html index.php;
+    index {index_files};
     
 """
         
@@ -506,7 +618,44 @@ def _generate_nginx_config(domain: str, web_root: str, ssl_option: str,
     }}
 """
         
-        if enable_php:
+        # Add location blocks based on application type for HTTPS
+        if app_type == "static":
+            ssl_config += """    location / {
+        try_files $uri $uri/ =404;
+    }
+"""
+        elif app_type == "php":
+            ssl_config += """    location / {
+        try_files $uri $uri/ =404;
+    }
+"""
+            ssl_config += f"""
+    location ~ \.php$ {{
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php{php_version}-fpm.sock;
+    }}
+"""
+        elif app_type == "nodejs":
+            ssl_config += """    # For Node.js applications, proxy to Node.js server
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+    
+    # Serve static files directly
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+"""
             ssl_config += f"""
     location ~ \.php$ {{
         include snippets/fastcgi-php.conf;
@@ -599,7 +748,8 @@ def _setup_ssl(domain: str, ssl_option: str, email: str = None, verbose: bool = 
 
 
 def _deploy_site(domain: str, method: str, github_url: str = None,
-                github_branch: str = None, github_token: str = None, verbose: bool = False) -> None:
+                github_branch: str = None, github_token: str = None,
+                app_type: str = "static", nodejs_version: str = None, verbose: bool = False) -> None:
     """
     Deploy website files.
     
@@ -609,6 +759,8 @@ def _deploy_site(domain: str, method: str, github_url: str = None,
         github_url (str): GitHub URL (if method is github)
         github_branch (str): GitHub branch (if method is github)
         github_token (str): GitHub token (if private repo)
+        app_type (str): Application type ('static', 'php', 'nodejs')
+        nodejs_version (str): Node.js version (if Node.js is enabled)
         verbose (bool): Enable verbose output
     """
     import subprocess
@@ -662,11 +814,86 @@ def _deploy_site(domain: str, method: str, github_url: str = None,
     
     elif method == "manual":
         if verbose:
-            logger.info("Creating placeholder index file")
+            logger.info("Creating placeholder files")
         
-        # Create a placeholder index.html file
-        with open(os.path.join(web_root, "index.html"), 'w') as f:
-            f.write(f"""<!DOCTYPE html>
+        if app_type == "nodejs":
+            # Create a placeholder Node.js application
+            with open(os.path.join(web_root, "package.json"), 'w') as f:
+                f.write(f"""{{
+  "name": "{domain.replace('.', '-')}-app",
+  "version": "1.0.0",
+  "description": "Node.js application for {domain}",
+  "main": "app.js",
+  "scripts": {{
+    "start": "node app.js",
+    "dev": "node app.js"
+  }},
+  "dependencies": {{
+    "express": "^4.18.0"
+  }}
+}}
+""")
+            
+            with open(os.path.join(web_root, "app.js"), 'w') as f:
+                f.write(f"""const express = require('express');
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {{
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Welcome to {domain}</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }}
+            h1 {{ color: #333; }}
+        </style>
+    </head>
+    <body>
+        <h1>Welcome to {domain}</h1>
+        <p>This Node.js application is managed by KurServer CLI.</p>
+        <p>Running on Node.js {nodejs_version}</p>
+    </body>
+    </html>
+  `);
+}});
+
+app.listen(port, () => {{
+  console.log(`Server running at http://localhost:${port}`);
+}});
+""")
+            
+            # Create a simple README
+            with open(os.path.join(web_root, "README.md"), 'w') as f:
+                f.write(f"""# {domain}
+
+This is a Node.js application deployed by KurServer CLI.
+
+## Getting Started
+
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+2. Start the application:
+   ```bash
+   npm start
+   ```
+
+## Node.js Version
+
+This application is configured to use Node.js {nodejs_version}.
+
+## Deployment
+
+This application is configured to run on port 3000 and is proxied through Nginx.
+""")
+        else:
+            # Create a placeholder index.html file for static/PHP sites
+            with open(os.path.join(web_root, "index.html"), 'w') as f:
+                f.write(f"""<!DOCTYPE html>
 <html>
 <head>
     <title>Welcome to {domain}</title>
@@ -996,6 +1223,27 @@ def site_info(verbose: bool = False) -> None:
                 console.print(f"[bold]PHP-FPM Status:[/bold] [yellow]Unknown[/yellow]")
         else:
             console.print("[bold]PHP:[/bold] Not configured")
+        
+        # Node.js status
+        if nodejs_proxy:
+            console.print("[bold]Node.js:[/bold] Enabled (proxied to port 3000)")
+            
+            # Try to detect Node.js version from package.json if it exists
+            web_root = root.group(1).strip() if root else f"/var/www/{site}"
+            package_json_path = os.path.join(web_root, "package.json")
+            
+            if os.path.exists(package_json_path):
+                try:
+                    with open(package_json_path, 'r') as f:
+                        import json
+                        package_data = json.load(f)
+                        node_engine = package_data.get('engines', {}).get('node')
+                        if node_engine:
+                            console.print(f"[bold]Node.js Version (engines):[/bold] {node_engine}")
+                except:
+                    console.print("[bold]Node.js Version:[/bold] Unable to detect from package.json")
+        else:
+            console.print("[bold]Node.js:[/bold] Not configured")
         
         # Check if site is enabled
         is_enabled = os.path.exists(f"/etc/nginx/sites-enabled/{site}")

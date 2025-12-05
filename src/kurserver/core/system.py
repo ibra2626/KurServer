@@ -7,7 +7,10 @@ import os
 import glob
 import platform
 import subprocess
+import time
+import threading
 from pathlib import Path
+from typing import Dict, Optional
 
 from .exceptions import SystemRequirementError, PermissionError
 
@@ -248,11 +251,16 @@ def is_service_enabled(service_name):
 
 def get_service_status():
     """
-    Get status of common web server services.
+    Get status of common web server services with parallel execution.
     
     Returns:
         dict: Dictionary with service status information
     """
+    start_time = time.time()
+    from .logger import get_logger, debug_log
+    logger = get_logger()
+    debug_log(logger, "system", "Starting get_service_status()")
+    
     services = ['nginx', 'mysql', 'mariadb', 'php7.4-fpm', 'php8.0-fpm', 'php8.1-fpm', 'php8.2-fpm', 'php8.3-fpm']
     
     status = {}
@@ -262,6 +270,61 @@ def get_service_status():
             'running': is_service_running(service),
             'enabled': is_service_enabled(service)
         }
+    
+    # OPTIMIZATION: Get NVM, Node, and npm status in parallel
+    parallel_start = time.time()
+    
+    def get_nvm_data():
+        nvm_start = time.time()
+        nvm_status = get_nvm_status()
+        debug_log(logger, "system", f"NVM status retrieval took: {time.time() - nvm_start:.3f}s")
+        return ('nvm', {
+            'installed': nvm_status.get('installed', False),
+            'running': nvm_status.get('installed', False),  # NVM is "running" if installed
+            'enabled': nvm_status.get('installed', False),  # NVM is "enabled" if installed
+            'version': nvm_status.get('version', None),
+            'current_version': nvm_status.get('current_version', None),
+            'installed_versions': nvm_status.get('installed_versions', []),
+            'default_version': nvm_status.get('default_version', None)
+        })
+    
+    def get_node_data():
+        node_start = time.time()
+        node_status = get_node_status()
+        debug_log(logger, "system", f"Node status retrieval took: {time.time() - node_start:.3f}s")
+        return ('node', {
+            'installed': node_status.get('installed', False),
+            'running': node_status.get('installed', False),  # Node is "running" if installed
+            'enabled': node_status.get('installed', False),  # Node is "enabled" if installed
+            'version': node_status.get('version', None),
+            'path': node_status.get('path', None)
+        })
+    
+    def get_npm_data():
+        npm_start = time.time()
+        npm_status = get_npm_status()
+        debug_log(logger, "system", f"npm status retrieval took: {time.time() - npm_start:.3f}s")
+        return ('npm', {
+            'installed': npm_status.get('installed', False),
+            'running': npm_status.get('installed', False),  # NPM is "running" if installed
+            'enabled': npm_status.get('installed', False),  # NPM is "enabled" if installed
+            'version': npm_status.get('version', None),
+            'path': npm_status.get('path', None)
+        })
+    
+    # Execute all functions and collect results
+    nvm_result = get_nvm_data()
+    node_result = get_node_data()
+    npm_result = get_npm_data()
+    
+    status[nvm_result[0]] = nvm_result[1]
+    status[node_result[0]] = node_result[1]
+    status[npm_result[0]] = npm_result[1]
+    
+    debug_log(logger, "system", f"Parallel NVM/Node/npm status retrieval took: {time.time() - parallel_start:.3f}s")
+    
+    total_time = time.time() - start_time
+    debug_log(logger, "system", f"Total get_service_status() took: {total_time:.3f}s")
     
     return status
 
@@ -733,6 +796,336 @@ def get_backup_size_estimate(component_name):
         'estimated_size_human': _format_size(total_size),
         'paths_exist': [path for path in paths if os.path.exists(path)]
     }
+
+
+
+def get_nvm_status():
+    """
+    Get NVM installation and status information.
+    
+    Returns:
+        dict: Dictionary with NVM status information
+    """
+    from ..cli.menu import console
+
+    start_time = time.time()
+    from .logger import get_logger, debug_log
+    logger = get_logger()
+
+    try:
+        # Check if NVM is installed
+        check_start = time.time()
+        nvm_dir = os.path.expanduser("~/.nvm")
+        
+        
+        
+        if not os.path.exists(nvm_dir):
+            debug_log(logger, "system", f"NVM directory check took: {time.time() - check_start:.3f}s")
+            debug_log(logger, "system", f"Total NVM status check (not installed) took: {time.time() - start_time:.3f}s")
+            
+            result_data = {
+                'installed': False,
+                'version': None,
+                'current_version': None,
+                'installed_versions': [],
+                'default_version': None
+            }
+            
+            return result_data
+        
+        debug_log(logger, "system", f"NVM directory check took: {time.time() - check_start:.3f}s")
+        
+        # OPTIMIZATION: Execute all NVM commands in a single shell session
+        batch_start = time.time()
+        batch_cmd = """
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \\. "$NVM_DIR/nvm.sh"
+        
+        # Check if NVM command is available
+        if ! command -v nvm >/dev/null 2>&1; then
+            echo "NVM_NOT_AVAILABLE"
+            exit 1
+        fi
+        
+        # Get NVM version
+        echo "===NVM_VERSION==="
+        nvm --version 2>/dev/null || echo "Unknown"
+        
+        # Get current Node.js version
+        echo "===NODE_VERSION==="
+        node --version 2>/dev/null || echo "Not installed"
+        
+        # Get installed Node.js versions
+        echo "===NVM_LIST==="
+        nvm list 2>/dev/null || echo "No versions installed"
+        
+        # Get default version
+        echo "===NVM_DEFAULT==="
+        nvm alias default 2>/dev/null || echo "No default set"
+        """
+        
+        result = subprocess.run([
+            "bash", "-c", batch_cmd
+        ], capture_output=True, text=True)
+        
+        debug_log(logger, "system", f"NVM batch command took: {time.time() - batch_start:.3f}s")
+        
+        if result.returncode != 0 or "NVM_NOT_AVAILABLE" in result.stdout:
+            debug_log(logger, "system", f"Total NVM status check (command not found) took: {time.time() - start_time:.3f}s")
+            
+            result_data = {
+                'installed': False,
+                'version': None,
+                'current_version': None,
+                'installed_versions': [],
+                'default_version': None
+            }
+            
+            return result_data
+        
+        # Parse the batch output - use a more robust approach
+        parse_start = time.time()
+        
+        nvm_version = None
+        node_version = None
+        installed_versions = []
+        default_version = None
+        
+        # Split by our custom markers, not just '===' to avoid conflicts with NVM alias output
+        markers = [
+            '===DEBUG_NVM_DIR===',
+            '===DEBUG_NVM_CMD===',
+            '===NVM_VERSION===',
+            '===NODE_VERSION===',
+            '===NVM_LIST===',
+            '===NVM_DEFAULT==='
+        ]
+        
+        debug_log(logger, "system", f"NVM raw output length: {len(result.stdout)}")
+        
+        # Process each section based on markers
+        for marker in markers:
+            start_idx = result.stdout.find(marker)
+            if start_idx == -1:
+                continue
+                
+            # Find the next marker to determine section bounds
+            next_marker_idx = len(result.stdout)
+            for next_marker in markers:
+                if next_marker != marker:
+                    next_idx = result.stdout.find(next_marker, start_idx + len(marker))
+                    if next_idx != -1 and next_idx < next_marker_idx:
+                        next_marker_idx = next_idx
+            
+            # Extract section content
+            section_content = result.stdout[start_idx + len(marker):next_marker_idx].strip()
+            
+            # Process based on marker type
+            if marker == '===DEBUG_NVM_DIR===':
+                debug_log(logger, "system", f"NVM Directory Debug: {section_content}")
+            elif marker == '===DEBUG_NVM_CMD===':
+                debug_log(logger, "system", f"NVM Command Debug: {section_content}")
+            elif marker == '===NVM_VERSION===':
+                nvm_version = section_content
+                debug_log(logger, "system", f"NVM Version: {nvm_version}")
+            elif marker == '===NODE_VERSION===':
+                node_version = section_content if section_content != "Not installed" else None
+                debug_log(logger, "system", f"Node Version: {node_version}")
+            elif marker == '===NVM_LIST===':
+                debug_log(logger, "system", f"NVM List Raw Output: {repr(section_content)}")
+                if "No versions installed" not in section_content:
+                    lines = section_content.split('\n')
+                    debug_log(logger, "system", f"NVM List Lines: {lines}")
+                    for line in lines:
+                        debug_log(logger, "system", f"Processing line: {repr(line)}")
+                        # Remove ANSI escape codes from the line
+                        import re
+                        # ANSI escape code pattern: \x1b[...m
+                        ansi_escape = re.compile(r'\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+                        clean_line = ansi_escape.sub('', line)
+                        
+                        # Look for actual installed versions (not aliases)
+                        # Installed versions have format like: "       v22.21.1 *" or "->     v24.11.1 *"
+                        # They should start with 'v' or '->' and contain a version pattern like x.y.z
+                        stripped_line = clean_line.strip()
+                        debug_log(logger, "system", f"Cleaned line: {repr(clean_line)}")
+                        debug_log(logger, "system", f"Stripped line: {repr(stripped_line)}")
+                        
+                        if (stripped_line and
+                            (stripped_line.startswith('v') or stripped_line.startswith('->')) and
+                            # Check if line contains a version pattern (digits.digits.digits)
+                            any(c.isdigit() for c in stripped_line) and '.' in stripped_line):
+                            # Extract version from the line
+                            version = stripped_line.replace('->', '').replace('*', '').strip()
+                            debug_log(logger, "system", f"Extracted version before processing: {repr(version)}")
+                            if version.startswith('v'):
+                                version = version[1:]  # Remove 'v' prefix
+                            # Validate version format (should be like x.y.z)
+                            if version and version.count('.') >= 2 and all(part.isdigit() for part in version.split('.')):
+                                installed_versions.append(version)
+                                debug_log(logger, "system", f"Added version: {version}")
+                debug_log(logger, "system", f"Final installed_versions: {installed_versions}")
+            elif marker == '===NVM_DEFAULT===':
+                debug_log(logger, "system", f"NVM Default Raw Output: {repr(section_content)}")
+                if 'default' in section_content and "No default set" not in section_content:
+                    # Parse default alias output like: "default -> node (-> v24.11.1 *)"
+                    # Extract the version from within the parentheses
+                    if '-> v' in section_content:
+                        # Find the version within the parentheses
+                        # Remove ANSI escape codes from content first
+                        import re
+                        ansi_escape = re.compile(r'\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+                        clean_content = ansi_escape.sub('', section_content)
+                        debug_log(logger, "system", f"Cleaned NVM Default Output: {repr(clean_content)}")
+                        
+                        start_idx = clean_content.find('-> v')
+                        if start_idx != -1:
+                            # Extract version string
+                            version_part = clean_content[start_idx + 4:]  # Skip '-> v'
+                            # Remove any trailing characters like ' *)'
+                            end_idx = len(version_part)
+                            for i, char in enumerate(version_part):
+                                if not (char.isdigit() or char == '.'):
+                                    end_idx = i
+                                    break
+                            default_version = version_part[:end_idx].replace('v', '')
+                            debug_log(logger, "system", f"Default Version: {default_version}")
+        
+        debug_log(logger, "system", f"NVM output parsing took: {time.time() - parse_start:.3f}s")
+        
+        result_data = {
+            'installed': True,
+            'version': nvm_version,
+            'current_version': node_version,
+            'installed_versions': installed_versions,
+            'default_version': default_version
+        }
+        
+        total_time = time.time() - start_time
+        debug_log(logger, "system", f"Total NVM status check took: {total_time:.3f}s")
+        
+        return result_data
+        
+    except Exception as e:
+        debug_log(logger, "system", f"NVM status check failed with exception after {time.time() - start_time:.3f}s: {e}")
+        
+        result_data = {
+            'installed': False,
+            'version': None,
+            'current_version': None,
+            'installed_versions': [],
+            'default_version': None
+        }
+        
+        return result_data
+
+
+
+def get_node_status():
+    """
+    Get Node.js installation status.
+    
+    Returns:
+        dict: Dictionary with Node.js status information
+    """
+    start_time = time.time()
+    from .logger import get_logger, debug_log
+    logger = get_logger()
+    
+    try:
+        # Check if Node.js is installed globally
+        version_start = time.time()
+        result = subprocess.run(
+            ["node", "--version"],
+            capture_output=True,
+            text=True
+        )
+        debug_log(logger, "system", f"Node version check took: {time.time() - version_start:.3f}s")
+        
+        result_data = None
+        if result.returncode == 0:
+            which_start = time.time()
+            node_path = subprocess.run(["which", "node"], capture_output=True, text=True).stdout.strip()
+            debug_log(logger, "system", f"Node which command took: {time.time() - which_start:.3f}s")
+            debug_log(logger, "system", f"Total Node status check took: {time.time() - start_time:.3f}s")
+            result_data = {
+                'installed': True,
+                'version': result.stdout.strip(),
+                'path': node_path
+            }
+        else:
+            debug_log(logger, "system", f"Total Node status check (not installed) took: {time.time() - start_time:.3f}s")
+            result_data = {
+                'installed': False,
+                'version': None,
+                'path': None
+            }
+        
+        return result_data
+            
+    except (subprocess.SubprocessError, FileNotFoundError) as e:
+        debug_log(logger, "system", f"Node status check failed with exception after {time.time() - start_time:.3f}s: {e}")
+        result_data = {
+            'installed': False,
+            'version': None,
+            'path': None
+        }
+        
+        return result_data
+
+
+
+def get_npm_status():
+    """
+    Get npm installation status.
+    
+    Returns:
+        dict: Dictionary with npm status information
+    """
+    start_time = time.time()
+    from .logger import get_logger, debug_log
+    logger = get_logger()
+    
+    try:
+        # Check if npm is installed globally
+        version_start = time.time()
+        result = subprocess.run(
+            ["npm", "--version"],
+            capture_output=True,
+            text=True
+        )
+        debug_log(logger, "system", f"npm version check took: {time.time() - version_start:.3f}s")
+        
+        result_data = None
+        if result.returncode == 0:
+            which_start = time.time()
+            npm_path = subprocess.run(["which", "npm"], capture_output=True, text=True).stdout.strip()
+            debug_log(logger, "system", f"npm which command took: {time.time() - which_start:.3f}s")
+            debug_log(logger, "system", f"Total npm status check took: {time.time() - start_time:.3f}s")
+            result_data = {
+                'installed': True,
+                'version': result.stdout.strip(),
+                'path': npm_path
+            }
+        else:
+            debug_log(logger, "system", f"Total npm status check (not installed) took: {time.time() - start_time:.3f}s")
+            result_data = {
+                'installed': False,
+                'version': None,
+                'path': None
+            }
+        
+        return result_data
+            
+    except (subprocess.SubprocessError, FileNotFoundError) as e:
+        debug_log(logger, "system", f"npm status check failed with exception after {time.time() - start_time:.3f}s: {e}")
+        result_data = {
+            'installed': False,
+            'version': None,
+            'path': None
+        }
+        
+        return result_data
 
 
 def _format_size(size_bytes):

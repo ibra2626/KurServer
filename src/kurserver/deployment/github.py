@@ -2,7 +2,7 @@
 GitHub deployment module for KurServer CLI.
 """
 
-from ..core.logger import get_logger
+from ..core.logger import get_logger, debug_log
 from ..cli.menu import get_user_input, confirm_action, show_progress
 
 logger = get_logger()
@@ -470,8 +470,8 @@ def _update_deployment_with_branch(deployment: dict, domain: str, new_branch: st
     import os
     
     # DEBUG: Log the deployment structure to understand the issue
-    logger.debug(f"[DEBUG] Deployment structure: {deployment}")
-    logger.debug(f"[DEBUG] Deployment keys: {list(deployment.keys()) if deployment else 'None'}")
+    debug_log(logger, "github", f"[DEBUG] Deployment structure: {deployment}")
+    debug_log(logger, "github", f"[DEBUG] Deployment keys: {list(deployment.keys()) if deployment else 'None'}")
     
     # Check if deployment has required fields
     if not deployment or 'web_root' not in deployment:

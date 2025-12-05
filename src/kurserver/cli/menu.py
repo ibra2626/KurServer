@@ -248,21 +248,25 @@ def create_main_menu() -> Menu:
     from ..installers.nginx import install_nginx_menu
     from ..installers.mysql import install_mysql_menu
     from ..installers.php import install_php_menu
+    from ..installers.nvm import install_nvm_menu
     from ..managers.nginx import site_management_menu
     from ..managers.database import manage_database_menu
     from ..managers.github_settings import github_settings_menu
+    from ..managers.nvm import nvm_management_menu
     from ..config.manager import config_management_menu
     
     options = [
         MenuOption("1", "Install Nginx", action=install_nginx_menu),
         MenuOption("2", "Install MySQL/MariaDB", action=install_mysql_menu),
         MenuOption("3", "Install PHP-FPM", action=install_php_menu),
-        MenuOption("4", "Site Management", action=site_management_menu),
-        MenuOption("5", "Manage databases", action=manage_database_menu),
-        MenuOption("6", "GitHub settings", action=github_settings_menu),
-        MenuOption("7", "Configuration management", action=config_management_menu),
-        MenuOption("8", "System status", action=show_system_status_menu),
-        MenuOption("9", "Uninstall components", action=uninstall_main_menu),
+        MenuOption("4", "Install NVM (Node Version Manager)", action=install_nvm_menu),
+        MenuOption("5", "Site Management", action=site_management_menu),
+        MenuOption("6", "Manage databases", action=manage_database_menu),
+        MenuOption("7", "NVM management", action=nvm_management_menu),
+        MenuOption("8", "GitHub settings", action=github_settings_menu),
+        MenuOption("9", "Configuration management", action=config_management_menu),
+        MenuOption("10", "System status", action=show_system_status_menu),
+        MenuOption("11", "Uninstall components", action=uninstall_main_menu),
     ]
     
     return Menu("KurServer CLI - Main Menu", options)
