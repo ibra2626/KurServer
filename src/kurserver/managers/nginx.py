@@ -1650,7 +1650,7 @@ def _update_ssl_config(domain: str, cert_type: str) -> None:
     }
     
     # Load and render template
-    template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'templates')
+    template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '..', 'templates')
     env = Environment(loader=FileSystemLoader(template_dir))
     template = env.get_template('nginx/site-ssl.conf.j2')
     
