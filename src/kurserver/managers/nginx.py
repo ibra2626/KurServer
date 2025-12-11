@@ -2,6 +2,7 @@
 Nginx site manager module for KurServer CLI.
 """
 
+import re
 from ..core.logger import get_logger
 from ..cli.menu import get_user_input, confirm_action, show_progress
 from ..core.system import get_available_php_versions, reload_nginx
