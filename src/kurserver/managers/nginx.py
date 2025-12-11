@@ -39,7 +39,7 @@ def _get_update_choice() -> str:
             choice_num = int(choice)
             
             if 1 <= choice_num <= len(UPDATE_OPTIONS):
-                # Extract the option key (e.g., "pull" from "pull - Pull latest changes from repository")
+                # Extract option key (e.g., "pull" from "pull - Pull latest changes from repository")
                 selected_option = UPDATE_OPTIONS[choice_num - 1].split(' - ')[0]
                 return selected_option
             else:
@@ -50,7 +50,7 @@ def _get_update_choice() -> str:
 
 def _execute_update(update_choice: str, deployment: dict, domain: str, verbose: bool = False) -> None:
     """
-    Execute the selected update operation with proper error handling.
+    Execute selected update operation with proper error handling.
     
     Args:
         update_choice (str): Type of update to perform
@@ -1587,43 +1587,79 @@ def install_ssl_cert(verbose: bool = False) -> None:
 
 
 def _update_ssl_config(domain: str, cert_type: str) -> None:
-    """Update Nginx configuration to use SSL certificate."""
+    """Update Nginx configuration to use SSL certificate using Jinja2 template."""
     import subprocess
     import os
+    from jinja2 import Environment, FileSystemLoader
     
     config_file = f"/etc/nginx/sites-available/{domain}"
     
-    # Read current configuration
+    # Read current configuration to extract existing settings
     with open(config_file, 'r') as f:
         config_content = f.read()
     
-    # Update SSL certificate paths
-    if cert_type == "letsencrypt":
-        config_content = re.sub(
-            r'ssl_certificate\\s+[^;]+;',
-            f'ssl_certificate /etc/letsencrypt/live/{domain}/fullchain.pem;',
-            config_content
-        )
-        config_content = re.sub(
-            r'ssl_certificate_key\\s+[^;]+;',
-            f'ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;',
-            config_content
-        )
-    else:  # custom
-        config_content = re.sub(
-            r'ssl_certificate\\s+[^;]+;',
-            f'ssl_certificate /etc/ssl/certs/{domain}.crt;',
-            config_content
-        )
-        config_content = re.sub(
-            r'ssl_certificate_key\\s+[^;]+;',
-            f'ssl_certificate_key /etc/ssl/private/{domain}.key;',
-            config_content
-        )
+    # Extract configuration parameters from existing config
+    server_name_match = re.search(r'server_name\s+([^;]+);', config_content)
+    root_match = re.search(r'root\s+([^;]+);', config_content)
+    index_match = re.search(r'index\s+([^;]+);', config_content)
+    php_version_match = re.search(r'fastcgi_pass\s+unix:/var/run/php/php([^-]+)-fpm\\.sock', config_content)
     
-    # Write updated configuration
+    # Extract domain names (handle multiple domains)
+    server_names = [name.strip() for name in server_name_match.group(1).strip().split()] if server_name_match else [domain]
+    main_domain = server_names[0] if server_names else domain
+    www_domain = any('www.' in name for name in server_names[1:]) if len(server_names) > 1 else False
+    
+    # Extract other parameters
+    document_root = root_match.group(1).strip() if root_match else f"/var/www/{domain}"
+    index_files = index_match.group(1).strip() if index_match else "index.html index.php"
+    php_version = php_version_match.group(1).strip() if php_version_match else None
+    
+    # Determine application type
+    enable_php = php_version is not None
+    enable_nodejs = 'proxy_pass http://localhost:3000' in config_content
+    
+    # Set fallback based on application type
+    if enable_php:
+        fallback = '/index.php?$query_string'
+    elif enable_nodejs:
+        fallback = '/index.html'
+    else:
+        fallback = '=404'
+    
+    # Set SSL certificate paths based on certificate type
+    if cert_type == "letsencrypt":
+        ssl_cert_path = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
+        ssl_key_path = f"/etc/letsencrypt/live/{domain}/privkey.pem"
+    else:  # custom
+        ssl_cert_path = f"/etc/ssl/certs/{domain}.crt"
+        ssl_key_path = f"/etc/ssl/private/{domain}.key"
+    
+    # Prepare template context
+    template_context = {
+        'domain': main_domain,
+        'www_domain': www_domain,
+        'document_root': document_root,
+        'index_files': index_files,
+        'enable_ssl': True,
+        'enable_php': enable_php,
+        'enable_nodejs': enable_nodejs,
+        'php_version': php_version,
+        'ssl_certificate_path': ssl_cert_path,
+        'ssl_certificate_key_path': ssl_key_path,
+        'fallback': fallback
+    }
+    
+    # Load and render template
+    template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'templates')
+    env = Environment(loader=FileSystemLoader(template_dir))
+    template = env.get_template('nginx/site-ssl.conf.j2')
+    
+    # Render new configuration
+    new_config_content = template.render(**template_context)
+    
+    # Write updated configuration to temporary file
     with open(f"/tmp/{domain}.conf", 'w') as f:
-        f.write(config_content)
+        f.write(new_config_content)
     
     # Replace original configuration
     subprocess.run(["sudo", "mv", f"/tmp/{domain}.conf", config_file], check=True)
